@@ -298,3 +298,273 @@ fn revoked_root_can_be_renewed_for_verified_undo() {
     engine.undo(op).unwrap();
     assert!(d.path().join("lecture.txt").exists());
 }
+#[test]
+fn trash_requires_separate_confirmation_and_supports_undo() {
+    let (d, mut engine, id) = setup();
+    let trash = tempfile::tempdir().unwrap();
+    let target = trash.path().canonicalize().unwrap();
+    let prepared = engine.prepare_trash(id, "lecture.txt".into()).unwrap();
+    assert!(engine
+        .trash_guarded(prepared.clone(), target.clone(), false, || true)
+        .is_err());
+    assert!(d.path().join("lecture.txt").exists());
+    let operation = engine
+        .trash_guarded(prepared, target.clone(), true, || true)
+        .unwrap();
+    assert!(!d.path().join("lecture.txt").exists());
+    assert_eq!(engine.history().unwrap()[0].kind, "trash");
+    engine.undo(operation).unwrap();
+    assert_eq!(
+        fs::read_to_string(d.path().join("lecture.txt")).unwrap(),
+        "synthetic"
+    );
+    assert_eq!(fs::read_dir(&target).unwrap().count(), 0);
+}
+#[test]
+fn trash_rejects_stale_permissions_and_changed_sources() {
+    let (d, mut engine, id) = setup();
+    let trash = tempfile::tempdir().unwrap();
+    let path = trash.path().canonicalize().unwrap();
+    let prepared = engine.prepare_trash(id, "lecture.txt".into()).unwrap();
+    assert!(engine
+        .trash_guarded(prepared.clone(), path.clone(), true, || false)
+        .is_err());
+    fs::write(d.path().join("lecture.txt"), "edited").unwrap();
+    assert!(engine.trash_guarded(prepared, path, true, || true).is_err());
+    assert!(d.path().join("lecture.txt").exists());
+}
+#[test]
+fn trash_undo_rejects_occupied_original_and_replaced_trash() {
+    let (d, mut engine, id) = setup();
+    let outer = tempfile::tempdir().unwrap();
+    let trash = outer.path().join("trash");
+    fs::create_dir(&trash).unwrap();
+    let trash = trash.canonicalize().unwrap();
+    let prepared = engine.prepare_trash(id, "lecture.txt".into()).unwrap();
+    let operation = engine
+        .trash_guarded(prepared, trash.clone(), true, || true)
+        .unwrap();
+    fs::write(d.path().join("lecture.txt"), "another").unwrap();
+    assert!(engine.undo(operation).is_err());
+    fs::remove_file(d.path().join("lecture.txt")).unwrap();
+    fs::rename(&trash, outer.path().join("old-trash")).unwrap();
+    fs::create_dir(&trash).unwrap();
+    assert!(engine.undo(operation).is_err());
+    assert_eq!(
+        fs::read_dir(outer.path().join("old-trash"))
+            .unwrap()
+            .count(),
+        1
+    );
+}
+#[test]
+fn trash_and_pdf_obey_source_boundaries() {
+    let (d, mut engine, id) = setup();
+    fs::create_dir(d.path().join("project")).unwrap();
+    fs::write(d.path().join("project/package.json"), "{}").unwrap();
+    fs::write(d.path().join("project/lecture.txt"), "synthetic").unwrap();
+    assert!(engine
+        .prepare_trash(id, "project/lecture.txt".into())
+        .is_err());
+    assert!(engine.prepare_trash(id, "../outside.txt".into()).is_err());
+    std::os::unix::fs::symlink("lecture.txt", d.path().join("link.pdf")).unwrap();
+    assert!(engine.prepare_trash(id, "link.pdf".into()).is_err());
+    fs::write(d.path().join("lecture.pdf"), b"%PDF-synthetic").unwrap();
+    stable(&d.path().join("lecture.pdf"));
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.pdf")
+        .unwrap();
+    assert_eq!(
+        engine.pdf_snapshot(p.id).unwrap().unwrap(),
+        b"%PDF-synthetic"
+    );
+    fs::write(d.path().join("lecture.pdf"), b"changed").unwrap();
+    assert!(engine.pdf_snapshot(p.id).is_err());
+}
+#[test]
+fn disabled_trash_rejects_requests() {
+    let (_d, mut engine, id) = setup();
+    engine
+        .set_settings(Settings {
+            trash_proposals: false,
+            ..engine.settings.clone()
+        })
+        .unwrap();
+    assert!(engine.prepare_trash(id, "lecture.txt".into()).is_err());
+}
+#[test]
+fn trash_confirmation_is_required_in_every_mode() {
+    for mode in [Mode::Full, Mode::Smart, Mode::Limited] {
+        let (d, mut engine, id) = setup();
+        engine
+            .set_settings(Settings {
+                mode,
+                ..engine.settings.clone()
+            })
+            .unwrap();
+        let trash = tempfile::tempdir().unwrap();
+        let prepared = engine.prepare_trash(id, "lecture.txt".into()).unwrap();
+        assert!(engine
+            .trash_guarded(
+                prepared.clone(),
+                trash.path().canonicalize().unwrap(),
+                false,
+                || true
+            )
+            .is_err());
+        let op = engine
+            .trash_guarded(prepared, trash.path().canonicalize().unwrap(), true, || {
+                true
+            })
+            .unwrap();
+        engine.undo(op).unwrap();
+        assert!(d.path().join("lecture.txt").exists());
+    }
+}
+#[test]
+fn directory_creation_is_journaled_without_unsafe_undo() {
+    let (_d, mut engine, _id) = setup();
+    let rows = engine.history().unwrap();
+    assert_eq!(rows.len(), 7);
+    assert!(rows
+        .iter()
+        .all(|r| r.kind == "mkdir" && r.state == "created_directory"));
+    assert!(engine.undo(rows[0].id).is_err());
+}
+#[test]
+fn policy_change_and_root_renewal_expire_trash_confirmation() {
+    let (d, mut engine, id) = setup();
+    let trash = tempfile::tempdir().unwrap();
+    let prepared = engine.prepare_trash(id, "lecture.txt".into()).unwrap();
+    engine
+        .set_settings(Settings {
+            mode: Mode::Smart,
+            ..engine.settings.clone()
+        })
+        .unwrap();
+    assert!(engine
+        .trash_guarded(prepared, trash.path().canonicalize().unwrap(), true, || {
+            true
+        })
+        .is_err());
+    let prepared = engine.prepare_trash(id, "lecture.txt".into()).unwrap();
+    engine
+        .authorize(d.path().canonicalize().unwrap(), "renewed".into())
+        .unwrap();
+    assert!(engine
+        .trash_guarded(prepared, trash.path().canonicalize().unwrap(), true, || {
+            true
+        })
+        .is_err());
+    assert!(d.path().join("lecture.txt").exists());
+}
+#[test]
+fn nearest_explicit_examples_never_grant_automatic_permission() {
+    let (d, mut engine, id) = setup();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.txt")
+        .unwrap();
+    engine.remember_example(p.id).unwrap();
+    fs::write(d.path().join("lecture_new.txt"), "synthetic").unwrap();
+    stable(&d.path().join("lecture_new.txt"));
+    engine.mark_initial_reviewed(id).unwrap();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture_new.txt")
+        .unwrap();
+    assert!(!p.certain);
+    assert!(engine.apply(p.id, false).is_err());
+    engine.clear_learning().unwrap();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture_new.txt")
+        .unwrap();
+    assert!(p.certain);
+    engine
+        .set_settings(Settings {
+            personalization: false,
+            ..engine.settings.clone()
+        })
+        .unwrap();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture_new.txt")
+        .unwrap();
+    assert!(engine.remember_example(p.id).is_err());
+}
+#[test]
+fn limited_rules_choose_the_explicit_custom_folder() {
+    let (d, mut engine, id) = setup();
+    fs::create_dir(d.path().join("College")).unwrap();
+    engine
+        .set_settings(Settings {
+            mode: Mode::Limited,
+            ..engine.settings.clone()
+        })
+        .unwrap();
+    engine
+        .correct(id, "Education".into(), "College".into(), true)
+        .unwrap();
+    engine.mark_initial_reviewed(id).unwrap();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.txt")
+        .unwrap();
+    assert_eq!(p.destination.as_deref(), Some("College/lecture.txt"));
+    engine.apply(p.id, false).unwrap();
+    assert!(d.path().join("College/lecture.txt").exists());
+}
+#[test]
+fn examples_do_not_override_explicit_preferences_or_match_only_extensions() {
+    let (d, mut engine, id) = setup();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.txt")
+        .unwrap();
+    engine.remember_example(p.id).unwrap();
+    fs::write(d.path().join("unrelated.TXT"), "synthetic").unwrap();
+    stable(&d.path().join("unrelated.TXT"));
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "unrelated.TXT")
+        .unwrap();
+    assert_eq!(p.category, "Unknown");
+    engine
+        .correct(id, "Education".into(), "Personal".into(), false)
+        .unwrap();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.txt")
+        .unwrap();
+    assert_eq!(p.destination.as_deref(), Some("Personal/lecture.txt"));
+    assert!(p.certain);
+}

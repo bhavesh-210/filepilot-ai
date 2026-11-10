@@ -1,5 +1,8 @@
 //! Trusted native core with no network client and no arbitrary command execution
 pub mod fs;
+pub mod pdf_worker;
+mod personalization;
+mod trash;
 use fs::Identity;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -9,6 +12,7 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+pub use trash::PreparedTrash;
 pub type Result<T> = std::result::Result<T, String>;
 fn message<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
@@ -36,6 +40,11 @@ pub struct Settings {
     pub monitoring: bool,
     pub personalization: bool,
     pub revision: u64,
+    #[serde(default = "enabled")]
+    pub trash_proposals: bool,
+}
+fn enabled() -> bool {
+    true
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -45,6 +54,7 @@ impl Default for Settings {
             monitoring: true,
             personalization: true,
             revision: 0,
+            trash_proposals: true,
         }
     }
 }
@@ -84,6 +94,7 @@ pub struct Operation {
     pub source: String,
     pub destination: String,
     pub state: String,
+    pub kind: String,
 }
 pub struct Engine {
     db: Connection,
@@ -93,6 +104,7 @@ pub struct Engine {
     root_identities: HashMap<i64, (u64, u64)>,
     pending: HashMap<u64, Proposal>,
     next_id: u64,
+    authorization_epoch: u64,
 }
 impl Engine {
     pub fn new(db: Connection) -> Result<Self> {
@@ -102,7 +114,33 @@ impl Engine {
         CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY,value TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS operations(id INTEGER PRIMARY KEY,root_id INTEGER NOT NULL,source TEXT NOT NULL,destination TEXT NOT NULL,identity TEXT NOT NULL,state TEXT NOT NULL,digest TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS corrections(root_id INTEGER NOT NULL,category TEXT NOT NULL,destination TEXT NOT NULL,PRIMARY KEY(root_id,category));
+        CREATE TABLE IF NOT EXISTS examples(root_id INTEGER NOT NULL,filename TEXT NOT NULL,category TEXT NOT NULL,destination TEXT NOT NULL,PRIMARY KEY(root_id,filename));
         CREATE TABLE IF NOT EXISTS rules(root_id INTEGER NOT NULL,category TEXT NOT NULL,destination TEXT NOT NULL,PRIMARY KEY(root_id,category));").map_err(message)?;
+        let columns = {
+            let mut query = db
+                .prepare("PRAGMA table_info(operations)")
+                .map_err(message)?;
+            let columns = query
+                .query_map([], |r| r.get::<_, String>(1))
+                .map_err(message)?
+                .collect::<std::result::Result<HashSet<_>, _>>()
+                .map_err(message)?;
+            columns
+        };
+        for (name, definition) in [
+            ("kind", "TEXT NOT NULL DEFAULT 'move'"),
+            ("trash_root", "TEXT"),
+            ("trash_device", "TEXT"),
+            ("trash_inode", "TEXT"),
+        ] {
+            if !columns.contains(name) {
+                db.execute(
+                    &format!("ALTER TABLE operations ADD COLUMN {name} {definition}"),
+                    [],
+                )
+                .map_err(message)?;
+            }
+        }
         let settings = db
             .query_row("SELECT value FROM settings WHERE id=1", [], |r| {
                 r.get::<_, String>(0)
@@ -120,6 +158,7 @@ impl Engine {
             permission_epoch: 0,
             root_identities: HashMap::new(),
             next_id: 1,
+            authorization_epoch: 0,
         })
     }
     fn parent(&self, id: i64, relative: &str) -> std::io::Result<(std::fs::File, String)> {
@@ -200,6 +239,9 @@ impl Engine {
                 .map_err(message)?;
             root.initial_reviewed = false;
             self.db
+                .execute("DELETE FROM examples WHERE root_id=?", [id])
+                .map_err(message)?;
+            self.db
                 .execute("DELETE FROM corrections WHERE root_id=?", [id])
                 .map_err(message)?;
             self.db
@@ -213,6 +255,11 @@ impl Engine {
             )
             .map_err(message)?;
         self.root_identities.insert(id, (meta.dev(), meta.ino()));
+        self.authorization_epoch = self
+            .authorization_epoch
+            .checked_add(1)
+            .ok_or("Authorization revision exhausted")?;
+        self.pending.retain(|_, p| p.root_id != id);
         self.roots.insert(id, root);
         Ok(id)
     }
@@ -241,6 +288,10 @@ impl Engine {
         self.authorize(path, bookmark)
     }
     pub fn revoke(&mut self, id: i64) -> Result<()> {
+        self.authorization_epoch = self
+            .authorization_epoch
+            .checked_add(1)
+            .ok_or("Authorization revision exhausted")?;
         self.roots.remove(&id);
         self.root_identities.remove(&id);
         self.pending.retain(|_, p| p.root_id != id);
@@ -272,7 +323,26 @@ impl Engine {
             return Err("Project protected".into());
         }
         for category in CATEGORIES {
-            fs::mkdir(&fd, category).map_err(message)?;
+            let existed = fs::exists(&fd, category).map_err(message)?;
+            self.db.execute("INSERT INTO operations(root_id,source,destination,identity,state,digest,kind) VALUES(?,'',?,'{}','directory_pending','','mkdir')",params![id,category]).map_err(message)?;
+            let operation = self.db.last_insert_rowid();
+            let result = fs::mkdir(&fd, category);
+            let status = if result.is_ok() {
+                if existed {
+                    "existing_directory"
+                } else {
+                    "created_directory"
+                }
+            } else {
+                "directory_setup_failed"
+            };
+            self.db
+                .execute(
+                    "UPDATE operations SET state=? WHERE id=?",
+                    params![status, operation],
+                )
+                .map_err(message)?;
+            result.map_err(message)?;
         }
         Ok(())
     }
@@ -318,6 +388,9 @@ impl Engine {
         Ok(())
     }
     pub fn clear_learning(&mut self) -> Result<()> {
+        self.db
+            .execute("DELETE FROM examples", [])
+            .map_err(message)?;
         self.db
             .execute("DELETE FROM corrections", [])
             .map_err(message)?;
@@ -392,15 +465,37 @@ impl Engine {
                     }
                 };
                 inventory.files += 1;
-                let category = classify(&name);
+                let mut category = classify(&name);
+                let mut example_used = false;
                 let mut target_folder = category.clone();
-                if self.settings.personalization {
+                let mut preference_used = false;
+                if self.settings.mode == Mode::Limited {
+                    if let Ok(value) = self.db.query_row(
+                        "SELECT destination FROM rules WHERE root_id=? AND category=?",
+                        params![id, category],
+                        |r| r.get::<_, String>(0),
+                    ) {
+                        target_folder = value;
+                        preference_used = true;
+                    }
+                }
+                if self.settings.personalization && !preference_used {
                     if let Ok(value) = self.db.query_row(
                         "SELECT destination FROM corrections WHERE root_id=? AND category=?",
                         params![id, category],
                         |r| r.get::<_, String>(0),
                     ) {
                         target_folder = value;
+                        preference_used = true;
+                    }
+                }
+                if !preference_used {
+                    if let Some((suggested_category, folder)) = self.nearest_example(id, &name)? {
+                        if CATEGORIES.contains(&suggested_category.as_str()) {
+                            category = suggested_category;
+                            target_folder = folder;
+                            example_used = true;
+                        }
                     }
                 }
                 let proposed_name = if self.settings.rename {
@@ -419,7 +514,11 @@ impl Engine {
                 let mut reason = if destination.is_none() {
                     "Needs classification review"
                 } else {
-                    "Category destination rule"
+                    if example_used {
+                        "Nearest explicit local correction requires review"
+                    } else {
+                        "Category destination rule"
+                    }
                 }
                 .to_string();
                 let mut blocked = destination.is_none();
@@ -464,7 +563,7 @@ impl Engine {
                     blocked,
                     revision: self.settings.revision,
                     rename: proposed_name != name,
-                    certain: category != "Unknown",
+                    certain: category != "Unknown" && !example_used,
                     snapshot,
                 };
                 self.next_id = self
@@ -574,6 +673,16 @@ impl Engine {
             .map_err(message)?;
         self.pending.remove(&id);
         Ok(operation)
+    }
+    pub fn pdf_snapshot(&self, proposal_id: u64) -> Result<Option<Vec<u8>>> {
+        let p = self.pending.get(&proposal_id).ok_or("Proposal expired")?;
+        if !p.source.to_lowercase().ends_with(".pdf") {
+            return Ok(None);
+        }
+        let (directory, name) = self.parent(p.root_id, &p.source).map_err(message)?;
+        Ok(Some(
+            fs::snapshot_bytes(&directory, &name, &p.snapshot, 2097152).map_err(message)?,
+        ))
     }
     pub fn analysis_text(&self, proposal_id: u64) -> Result<(String, bool)> {
         let p = self.pending.get(&proposal_id).ok_or("Proposal expired")?;
@@ -716,7 +825,7 @@ impl Engine {
         )
     }
     pub fn history(&self) -> Result<Vec<Operation>> {
-        let mut q=self.db.prepare("SELECT id,root_id,source,destination,state FROM operations ORDER BY id DESC LIMIT 500").map_err(message)?;
+        let mut q=self.db.prepare("SELECT id,root_id,source,destination,state,kind FROM operations ORDER BY id DESC LIMIT 500").map_err(message)?;
         let rows = q
             .query_map([], |r| {
                 Ok(Operation {
@@ -725,6 +834,7 @@ impl Engine {
                     source: r.get(2)?,
                     destination: r.get(3)?,
                     state: r.get(4)?,
+                    kind: r.get(5)?,
                 })
             })
             .map_err(message)?;
@@ -735,6 +845,13 @@ impl Engine {
         self.undo_guarded(id, || true)
     }
     pub fn undo_guarded<F: Fn() -> bool>(&mut self, id: i64, permission_current: F) -> Result<()> {
+        let kind: String = self
+            .db
+            .query_row("SELECT kind FROM operations WHERE id=?", [id], |r| r.get(0))
+            .map_err(message)?;
+        if kind == "trash" {
+            return self.undo_trash_guarded(id, permission_current);
+        }
         let (root_id, source, destination, identity, state): (i64, String, String, String, String) =
             self.db
                 .query_row(
@@ -788,7 +905,7 @@ impl Engine {
         Ok(())
     }
     pub fn recover(&mut self) -> Result<()> {
-        let mut query=self.db.prepare("SELECT id,root_id,source,destination,state FROM operations WHERE state IN ('pending','undo_pending')").map_err(message)?;
+        let mut query=self.db.prepare("SELECT id,root_id,source,destination,state,kind FROM operations WHERE state IN ('pending','undo_pending','directory_pending')").map_err(message)?;
         let operations = query
             .query_map([], |r| {
                 Ok(Operation {
@@ -797,12 +914,36 @@ impl Engine {
                     source: r.get(2)?,
                     destination: r.get(3)?,
                     state: r.get(4)?,
+                    kind: r.get(5)?,
                 })
             })
             .map_err(message)?
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(message)?;
+        drop(query);
         for op in operations {
+            if op.kind == "mkdir" {
+                if let Ok(directory) = self.opened_root(op.root_id) {
+                    let status = if fs::child_directory(&directory, &op.destination).is_ok() {
+                        "directory_present_after_recovery"
+                    } else if !fs::exists(&directory, &op.destination).unwrap_or(true) {
+                        "directory_not_created"
+                    } else {
+                        "directory_needs_review"
+                    };
+                    self.db
+                        .execute(
+                            "UPDATE operations SET state=? WHERE id=?",
+                            params![status, op.id],
+                        )
+                        .map_err(message)?;
+                }
+                continue;
+            }
+            if op.kind == "trash" {
+                self.recover_trash(&op)?;
+                continue;
+            }
             let Some(root) = self.roots.get(&op.root_id) else {
                 continue;
             };
@@ -939,7 +1080,10 @@ mod recovery_tests {
         assert_eq!(engine.history().unwrap()[0].state, "applied");
         engine
             .db
-            .execute("UPDATE operations SET state='undo_pending'", [])
+            .execute(
+                "UPDATE operations SET state='undo_pending' WHERE kind='move'",
+                [],
+            )
             .unwrap();
         fs::move_exclusive(&to, &dest, &from, &name).unwrap();
         engine.recover().unwrap();
@@ -1038,5 +1182,54 @@ mod fault_tests {
             std::fs::read_to_string(temp.path().join("Education/lecture.txt")).unwrap(),
             "synthetic"
         );
+    }
+}
+#[cfg(test)]
+mod trash_fault_tests {
+    use super::*;
+    #[test]
+    fn interrupted_trash_recovers_and_undo_remains_guarded() {
+        let temp = tempfile::tempdir().unwrap();
+        let trash = tempfile::tempdir().unwrap();
+        let path = temp.path().canonicalize().unwrap();
+        let mut engine = Engine::new(Connection::open_in_memory().unwrap()).unwrap();
+        let root = engine.authorize(path.clone(), "test".into()).unwrap();
+        std::fs::write(path.join("lecture.txt"), "synthetic").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(path.join("lecture.txt"))
+            .unwrap()
+            .set_times(
+                std::fs::FileTimes::new()
+                    .set_modified(SystemTime::now() - std::time::Duration::from_secs(60)),
+            )
+            .unwrap();
+        let prepared = engine.prepare_trash(root, "lecture.txt".into()).unwrap();
+        engine.db.execute_batch("CREATE TRIGGER fail_trash_commit BEFORE UPDATE OF state ON operations WHEN NEW.state='applied' BEGIN SELECT RAISE(ABORT,'synthetic fault'); END;").unwrap();
+        assert!(engine
+            .trash_guarded(prepared, trash.path().canonicalize().unwrap(), true, || {
+                true
+            })
+            .is_err());
+        assert!(!path.join("lecture.txt").exists());
+        engine
+            .db
+            .execute_batch("DROP TRIGGER fail_trash_commit")
+            .unwrap();
+        engine.recover().unwrap();
+        let operation = engine.history().unwrap().remove(0);
+        assert_eq!(operation.state, "applied");
+        assert!(engine.undo_guarded(operation.id, || false).is_err());
+        engine.undo(operation.id).unwrap();
+        assert!(path.join("lecture.txt").exists());
+    }
+    #[test]
+    fn legacy_journal_migration_preserves_history() {
+        let db = Connection::open_in_memory().unwrap();
+        db.execute_batch("CREATE TABLE operations(id INTEGER PRIMARY KEY,root_id INTEGER NOT NULL,source TEXT NOT NULL,destination TEXT NOT NULL,identity TEXT NOT NULL,state TEXT NOT NULL,digest TEXT NOT NULL); INSERT INTO operations VALUES(1,1,'a.txt','b.txt','{}','cancelled','test');").unwrap();
+        let engine = Engine::new(db).unwrap();
+        let row = engine.history().unwrap().remove(0);
+        assert_eq!(row.kind, "move");
+        assert_eq!(row.source, "a.txt");
     }
 }

@@ -98,7 +98,7 @@ pub fn root(path: &Path) -> io::Result<File> {
                 let name = name
                     .to_str()
                     .ok_or_else(|| err("Unsupported path encoding"))?;
-                if excluded(name) {
+                if name.chars().any(|c| c.is_control()) || excluded(name) {
                     return Err(err("Excluded root"));
                 }
                 fd = open_at(fd.as_raw_fd(), name)?;
@@ -424,4 +424,69 @@ pub fn text_sample(parent: &File, name: &str, expected: &Identity) -> io::Result
         return Err(err("File changed during inspection"));
     }
     Ok(text.chars().take(2000).collect())
+}
+pub fn snapshot_bytes(
+    parent: &File,
+    name: &str,
+    expected: &Identity,
+    max_bytes: u64,
+) -> io::Result<Vec<u8>> {
+    use std::io::Read;
+    use std::os::unix::fs::MetadataExt;
+    if expected.size > max_bytes || &identity(parent, name)? != expected {
+        return Err(err("File changed or exceeds parser input limit"));
+    }
+    let fd = unsafe {
+        libc::openat(
+            parent.as_raw_fd(),
+            c(name)?.as_ptr(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC,
+        )
+    };
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let file = unsafe { File::from_raw_fd(fd) };
+    let meta = file.metadata()?;
+    if !meta.is_file()
+        || meta.dev() != expected.dev
+        || meta.ino() != expected.ino
+        || meta.nlink() != 1
+        || dataless(fd)?
+    {
+        return Err(err("File changed while opening parser snapshot"));
+    }
+    let mut bytes = Vec::new();
+    file.take(max_bytes + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != expected.size || &identity(parent, name)? != expected {
+        return Err(err("File changed during parser snapshot"));
+    }
+    Ok(bytes)
+}
+pub fn special_root(path: &Path, expected: Option<(u64, u64)>) -> io::Result<File> {
+    use std::os::unix::fs::MetadataExt;
+    if !path.is_absolute() || path == Path::new("/") {
+        return Err(err("Invalid system Trash root"));
+    }
+    let mut directory = open_at(libc::AT_FDCWD, "/")?;
+    for component in path.components() {
+        match component {
+            Component::RootDir => {}
+            Component::Normal(name) => {
+                directory = open_at(
+                    directory.as_raw_fd(),
+                    name.to_str().ok_or_else(|| err("Unsupported Trash path"))?,
+                )?;
+            }
+            _ => return Err(err("Noncanonical Trash path")),
+        }
+    }
+    let metadata = directory.metadata()?;
+    if metadata.uid() != unsafe { libc::geteuid() } || dataless(directory.as_raw_fd())? {
+        return Err(err("Trash root ownership or state rejected"));
+    }
+    if expected.is_some_and(|value| value != (metadata.dev(), metadata.ino())) {
+        return Err(err("Trash root identity changed"));
+    }
+    Ok(directory)
 }
