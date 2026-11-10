@@ -65,7 +65,7 @@ fn words(text: &str) -> HashSet<String> {
         .take(512)
         .collect()
 }
-fn categories(text: &str) -> Vec<String> {
+pub(crate) fn categories(text: &str) -> Vec<String> {
     let w = words(text);
     let mut scores = Vec::new();
     for (c, terms) in [
