@@ -1,5 +1,11 @@
 # Changelog
 
+## Run scanner checks on GitHub
+
+- Run tests after each push to main
+- Check Python 3 point 12 and 3 point 14 on Linux and macOS
+- Keep the workflow read only and pin the action versions
+
 ## Add the read only scanner
 
 - Add an explicit directory scan with JSON output

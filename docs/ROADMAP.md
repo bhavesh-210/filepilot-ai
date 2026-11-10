@@ -15,7 +15,7 @@ These steps show what has been added here rather than when the local work was or
 - [ ] Add the local ML baseline and its evaluation results
 - [ ] Record the experiments with uncertain predictions
 - [ ] Add one command to run project checks
-- [ ] Run the checks automatically on GitHub
+- [x] Run the checks automatically on GitHub
 
 ## After the foundation
 

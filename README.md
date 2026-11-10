@@ -85,3 +85,12 @@ Cloud folder providers such as iCloud may react to metadata access so this versi
 Reports contain file paths so keep them private
 
 See docs/SCANNER.md for the report fields and safety boundaries
+
+
+## Automatic checks
+
+GitHub runs the scanner tests after each push to main
+
+The checks cover Python 3 point 12 and 3 point 14 on Linux and macOS
+
+Open the Actions tab to see the results for a commit
