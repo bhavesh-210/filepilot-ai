@@ -9,22 +9,6 @@ private func output(_ value: [String: Any]) -> UnsafeMutablePointer<CChar>? {
     let data = try! JSONSerialization.data(withJSONObject: value)
     return strdup(String(data: data, encoding: .utf8)!)
 }
-@_cdecl("fp_choose_root")
-public func chooseRoot() -> UnsafeMutablePointer<CChar>? {
-    let panel = NSOpenPanel()
-    panel.canChooseFiles = false
-    panel.canChooseDirectories = true
-    panel.allowsMultipleSelection = false
-    panel.message = "Choose a folder FilePilot may organise"
-    guard panel.runModal() == .OK, let url = panel.url else { return output(["cancelled": true]) }
-    do {
-        let bookmark = try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
-        let canonical=url.resolvingSymlinksInPath().path
-        if let previous=held.removeValue(forKey:canonical) {previous.stopAccessingSecurityScopedResource()}
-        if url.startAccessingSecurityScopedResource() {held[canonical] = url}
-        return output(["path": url.resolvingSymlinksInPath().path, "bookmark": bookmark.base64EncodedString()])
-    } catch { return output(["error": "Could not retain folder access"]) }
-}
 @_cdecl("fp_choose_roots")
 public func chooseRoots() -> UnsafeMutablePointer<CChar>? {
     let panel = NSOpenPanel()

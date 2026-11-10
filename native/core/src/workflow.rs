@@ -91,13 +91,27 @@ impl Engine {
             .map(|p| p.unwrap_or_default())
     }
     pub fn set_preferences(&mut self, preferences: Preferences) -> Result<()> {
-        self.db
+        let mut settings = self.settings.clone();
+        settings.revision = settings
+            .revision
+            .checked_add(1)
+            .ok_or("Revision exhausted")?;
+        let transaction = self.db.unchecked_transaction().map_err(message)?;
+        transaction
             .execute(
                 "INSERT OR REPLACE INTO settings VALUES(2,?)",
                 [serde_json::to_string(&preferences).map_err(message)?],
             )
             .map_err(message)?;
-        self.set_settings(self.settings.clone())?;
+        transaction
+            .execute(
+                "INSERT OR REPLACE INTO settings VALUES(1,?)",
+                [serde_json::to_string(&settings).map_err(message)?],
+            )
+            .map_err(message)?;
+        transaction.commit().map_err(message)?;
+        self.settings = settings;
+        self.pending.clear();
         self.setup_previews.clear();
         Ok(())
     }
@@ -232,5 +246,22 @@ impl Engine {
         } else {
             self.scan_background(id)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn preference_and_policy_revision_commit_together() {
+        let mut engine = Engine::new(Connection::open_in_memory().unwrap()).unwrap();
+        engine.db.execute_batch("CREATE TRIGGER reject_revision BEFORE INSERT ON settings WHEN NEW.id=1 BEGIN SELECT RAISE(FAIL,'synthetic persistence failure'); END;").unwrap();
+        assert!(engine
+            .set_preferences(Preferences {
+                reuse_existing: false
+            })
+            .is_err());
+        assert!(engine.preferences().unwrap().reuse_existing);
+        assert_eq!(engine.settings.revision, 0);
     }
 }

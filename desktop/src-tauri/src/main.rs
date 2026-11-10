@@ -22,7 +22,6 @@ extern "C" {
     fn fp_confirm_trash(source: *const libc::c_char) -> *mut libc::c_char;
     fn fp_semantic_rank(input: *const libc::c_char) -> *mut libc::c_char;
     fn fp_choose_roots() -> *mut libc::c_char;
-    fn fp_choose_root() -> *mut libc::c_char;
     fn fp_resolve_root(encoded: *const libc::c_char) -> *mut libc::c_char;
     fn fp_release_root(path: *const libc::c_char);
     fn fp_login(enabled: bool) -> *mut libc::c_char;
@@ -48,40 +47,6 @@ fn snapshot(state: tauri::State<Shared>) -> Result<serde_json::Value, String> {
     Ok(
         serde_json::json!({"preferences":engine.preferences()?,"inventories":engine.inventories(),"settings":engine.settings,"roots":roots,"history":engine.history()?,"notice":*state.notice.lock().map_err(|_|"Notice lock failed")?}),
     )
-}
-#[tauri::command]
-async fn choose_folder(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, Shared>,
-) -> Result<Option<i64>, String> {
-    let engine = state.engine.clone();
-    let (send, recv) = std::sync::mpsc::channel();
-    app.run_on_main_thread(move || {
-        #[cfg(target_os = "macos")]
-        let result = (|| {
-            let value = unsafe { native_json(fp_choose_root()) }?;
-            if value["cancelled"] == true {
-                return Ok(None);
-            }
-            let path = value["path"].as_str().ok_or("Missing folder path")?;
-            let bookmark = value["bookmark"].as_str().ok_or("Missing bookmark")?;
-            let id = engine
-                .lock()
-                .map_err(|_| "Engine lock failed")?
-                .authorize(PathBuf::from(path), bookmark.into())?;
-            Ok(Some(id))
-        })();
-        #[cfg(not(target_os = "macos"))]
-        let result: Result<Option<i64>, String> =
-            Err("The native app currently requires macOS".into());
-        let _ = send.send(result);
-    })
-    .map_err(|e| e.to_string())?;
-    tauri::async_runtime::spawn_blocking(move || {
-        recv.recv().map_err(|_| "Folder picker ended".to_string())?
-    })
-    .await
-    .map_err(|e| e.to_string())?
 }
 #[tauri::command]
 async fn choose_folders(
@@ -315,28 +280,12 @@ async fn duplicates(
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
-fn create_categories(root_id: i64, state: tauri::State<Shared>) -> Result<(), String> {
-    state
-        .engine
-        .lock()
-        .map_err(|_| "Engine lock failed")?
-        .create_categories(root_id)
-}
-#[tauri::command]
 fn update_settings(settings: Settings, state: tauri::State<Shared>) -> Result<(), String> {
     let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
     let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
     engine.set_settings(settings)?;
     engine.permission_epoch = epoch;
     Ok(())
-}
-#[tauri::command]
-fn enable_after_preview(root_id: i64, state: tauri::State<Shared>) -> Result<(), String> {
-    state
-        .engine
-        .lock()
-        .map_err(|_| "Engine lock failed")?
-        .mark_initial_reviewed(root_id)
 }
 #[tauri::command]
 async fn apply(proposal_id: u64, state: tauri::State<'_, Shared>) -> Result<i64, String> {
@@ -546,11 +495,8 @@ fn main() {
             review_destination,
             duplicates,
             snapshot,
-            choose_folder,
             scan,
-            create_categories,
             update_settings,
-            enable_after_preview,
             apply,
             undo,
             correction,

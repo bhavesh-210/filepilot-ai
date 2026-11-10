@@ -147,7 +147,9 @@ function App() {
   }
   async function start() {
     try {
-      for (const preview of previews)
+      for (const preview of previews.filter((p) =>
+        pendingSetup.some((r) => r.id === p.inventory.root_id),
+      ))
         await invoke("finish_setup", {
           rootId: preview.inventory.root_id,
           token: preview.token,
