@@ -77,3 +77,16 @@ This milestone extracts text rather than claiming semantic understanding or auto
 - [x] Add an offline browser review prototype
 
 See IMPLEMENTATION_STATUS for the native product work still pending
+
+## Native alpha
+
+- [x] Add the React and Tauri application
+- [x] Add the Rust move rename journal and Undo implementation
+- [x] Wire root authorization autonomy revisions corrections and rules
+- [x] Add the Swift bookmark login and local embedding bridges
+- [x] Add FSEvents backed monitoring and scheduled reconciliation
+- [x] Add explicit read only duplicate analysis
+- [x] Add native core tests and macOS app build checks
+
+Production acceptance remains tracked in IMPLEMENTATION_STATUS and MAC_ACCEPTANCE
+Earlier pending lists describe the roadmap at the time and are superseded by the current implementation status

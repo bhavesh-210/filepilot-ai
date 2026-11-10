@@ -37,14 +37,19 @@ jobs:
         run: |
           rustup toolchain install 1.99.1 --profile minimal
           rustup default 1.99.1
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Test native Swift helpers without opening permission dialogs
+        run: |
+          xcrun swiftc desktop/src-tauri/macos/Mac.swift desktop/src-tauri/macos/check/main.swift -o /tmp/filepilot-mac-check -framework AppKit -framework Foundation -framework ServiceManagement -framework NaturalLanguage
+          /tmp/filepilot-mac-check
       - name: Install locked frontend dependencies
         working-directory: desktop
         run: npm ci --ignore-scripts
       - name: Compile and bundle the app
         working-directory: desktop
-        run: npm run tauri -- build --bundles app
+        run: npm run tauri -- build --target universal-apple-darwin --bundles app
       - name: Preserve the application bundle and executable permissions
-        run: ditto -c -k --keepParent "desktop/src-tauri/target/release/bundle/macos/FilePilot AI.app" FilePilot-macOS-development.zip
+        run: ditto -c -k --keepParent "desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/FilePilot AI.app" FilePilot-macOS-development.zip
       - name: Save the unsigned development app
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:

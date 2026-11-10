@@ -19,8 +19,8 @@ public func chooseRoot() -> UnsafeMutablePointer<CChar>? {
     guard panel.runModal() == .OK, let url = panel.url else { return output(["cancelled": true]) }
     do {
         let bookmark = try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
-        _ = url.startAccessingSecurityScopedResource()
-        held[url.path] = url
+        let canonical=url.resolvingSymlinksInPath().path
+        if held[canonical] == nil && url.startAccessingSecurityScopedResource() {held[canonical] = url}
         return output(["path": url.resolvingSymlinksInPath().path, "bookmark": bookmark.base64EncodedString()])
     } catch { return output(["error": "Could not retain folder access"]) }
 }
@@ -31,8 +31,8 @@ public func resolveRoot(_ encoded: UnsafePointer<CChar>) -> UnsafeMutablePointer
         var stale = false
         let url = try URL(resolvingBookmarkData:data, options:[.withSecurityScope,.withoutUI], relativeTo:nil, bookmarkDataIsStale:&stale)
         guard !stale else { return output(["error":"Folder access needs renewal"]) }
-        _ = url.startAccessingSecurityScopedResource()
-        held[url.path] = url
+        let canonical=url.resolvingSymlinksInPath().path
+        if held[canonical] == nil && url.startAccessingSecurityScopedResource() {held[canonical] = url}
         return output(["path":url.resolvingSymlinksInPath().path])
     } catch { return output(["error":"Folder access must be renewed"]) }
 }
@@ -47,4 +47,37 @@ public func login(_ enabled: Bool) -> UnsafeMutablePointer<CChar>? {
         if enabled {try SMAppService.mainApp.register()} else {try SMAppService.mainApp.unregister()}
         return output(["enabled":SMAppService.mainApp.status == .enabled])
     } catch {return output(["error":"Login item registration requires an installed app and system approval"])}
+}
+
+import NaturalLanguage
+private let embeddingLock = NSLock()
+@_cdecl("fp_semantic_rank")
+public func semanticRank(_ input: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    embeddingLock.lock()
+    defer { embeddingLock.unlock() }
+    // No asset download request is made and absence is an explicit fallback
+    guard let embedding = NLEmbedding.sentenceEmbedding(for: .english) else {
+        return output(["available":false,"reason":"English sentence embedding is not installed on this Mac"])
+    }
+    let text = String(String(cString:input).prefix(2000))
+    guard let query=embedding.vector(for:text) else { return output(["available":false,"reason":"No embedding for this input"]) }
+    let descriptions = [
+        "Education":"School university college study lessons homework exams textbooks",
+        "Development":"Software programming source code technical developer projects",
+        "Professional":"Work business employment resumes contracts clients meetings",
+        "Finance":"Money payments invoices banking taxes receipts bills accounts",
+        "Media":"Photographs images music audio video recordings",
+        "Software":"Application installers software packages disk images",
+        "Personal":"Personal life family travel diary recipes hobbies"
+    ]
+    var ranking:[[String:Any]]=[]
+    for (category,description) in descriptions {
+        guard let vector=embedding.vector(for:description),vector.count==query.count else { continue }
+        let numerator=zip(query,vector).reduce(0.0){$0+$1.0*$1.1}
+        let denominator=sqrt(query.reduce(0.0){$0+$1*$1}*vector.reduce(0.0){$0+$1*$1})
+        let score=denominator>0 ? numerator/denominator : 0
+        ranking.append(["category":category,"score":score])
+    }
+    ranking.sort{($0["score"] as! Double)>($1["score"] as! Double)}
+    return output(["available":true,"model":"Apple English sentence embedding","revision":embedding.revision,"ranking":Array(ranking.prefix(3)),"scores_are_probabilities":false,"review_required":true])
 }

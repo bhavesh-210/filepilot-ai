@@ -41,7 +41,12 @@ fn main() {
             println!("cargo:rustc-link-search=native={}", path.as_str().unwrap());
         }
         println!("cargo:rustc-link-lib=dylib=swiftCore");
-        for name in ["Foundation", "AppKit", "ServiceManagement"] {
+        for name in [
+            "Foundation",
+            "AppKit",
+            "ServiceManagement",
+            "NaturalLanguage",
+        ] {
             println!("cargo:rustc-link-lib=framework={name}");
         }
         println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");

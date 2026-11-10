@@ -1,5 +1,20 @@
 # FilePilot AI
 
+Your Files Your Mac Your Control
+
+I am building an offline macOS file organizer with a React and Tauri desktop app and a Rust filesystem engine
+The current native build is a development alpha rather than a production release
+Use disposable test folders until the Mac acceptance and security checks pass
+
+The app includes folder selection previews three autonomy modes reversible moves whitespace renaming local correction controls duplicate analysis and a background reconciliation loop
+Optional semantic suggestions use an installed macOS English model and require explicit review
+
+See [native app details](docs/NATIVE_APP.md) [implementation status](docs/IMPLEMENTATION_STATUS.md) and [Mac acceptance](docs/MAC_ACCEPTANCE.md)
+
+The original Python scanner and experiments remain available as separate read only research tools
+
+## Earlier prototype documentation
+
 Your files your Mac your control
 
 I am building FilePilot AI to make it easier to keep files organised on a Mac

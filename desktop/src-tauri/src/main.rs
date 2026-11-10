@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use filepilot_core::{Engine, Settings};
 use notify::{RecursiveMode, Watcher};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     collections::HashSet,
     ffi::{CStr, CString},
@@ -13,9 +14,11 @@ use tauri::{Emitter, Manager};
 struct Shared {
     engine: Arc<Mutex<Engine>>,
     notice: Arc<Mutex<String>>,
+    epoch: Arc<AtomicU64>,
 }
 #[cfg(target_os = "macos")]
 extern "C" {
+    fn fp_semantic_rank(input: *const libc::c_char) -> *mut libc::c_char;
     fn fp_choose_root() -> *mut libc::c_char;
     fn fp_resolve_root(encoded: *const libc::c_char) -> *mut libc::c_char;
     fn fp_release_root(path: *const libc::c_char);
@@ -93,6 +96,43 @@ async fn scan(
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn semantic_suggestions(
+    proposal_id: u64,
+    state: tauri::State<'_, Shared>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (text, content_used) = engine
+            .lock()
+            .map_err(|_| "Engine lock failed")?
+            .analysis_text(proposal_id)?;
+        #[cfg(target_os = "macos")]
+        let mut result = unsafe {
+            native_json(fp_semantic_rank(
+                CString::new(text).map_err(|_| "Invalid text")?.as_ptr(),
+            ))
+        }?;
+        #[cfg(not(target_os = "macos"))]
+        let mut result = serde_json::json!({"available":false,"reason":"macOS embedding required"});
+        result["content_used"] = content_used.into();
+        Ok(result)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+fn review_destination(
+    proposal_id: u64,
+    category: String,
+    state: tauri::State<Shared>,
+) -> Result<filepilot_core::Proposal, String> {
+    state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .review_destination(proposal_id, category)
+}
+#[tauri::command]
 async fn duplicates(
     root_id: i64,
     state: tauri::State<'_, Shared>,
@@ -117,11 +157,11 @@ fn create_categories(root_id: i64, state: tauri::State<Shared>) -> Result<(), St
 }
 #[tauri::command]
 fn update_settings(settings: Settings, state: tauri::State<Shared>) -> Result<(), String> {
-    state
-        .engine
-        .lock()
-        .map_err(|_| "Engine lock failed")?
-        .set_settings(settings)
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.set_settings(settings)?;
+    engine.permission_epoch = epoch;
+    Ok(())
 }
 #[tauri::command]
 fn enable_after_preview(root_id: i64, state: tauri::State<Shared>) -> Result<(), String> {
@@ -134,11 +174,13 @@ fn enable_after_preview(root_id: i64, state: tauri::State<Shared>) -> Result<(),
 #[tauri::command]
 async fn apply(proposal_id: u64, state: tauri::State<'_, Shared>) -> Result<i64, String> {
     let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        engine
-            .lock()
-            .map_err(|_| "Engine lock failed")?
-            .apply(proposal_id, true)
+        let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
+        let expected = engine.permission_epoch;
+        engine.apply_guarded(proposal_id, true, || {
+            epoch.load(Ordering::SeqCst) == expected
+        })
     })
     .await
     .map_err(|e| e.to_string())?
@@ -146,11 +188,11 @@ async fn apply(proposal_id: u64, state: tauri::State<'_, Shared>) -> Result<i64,
 #[tauri::command]
 async fn undo(operation_id: i64, state: tauri::State<'_, Shared>) -> Result<(), String> {
     let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        engine
-            .lock()
-            .map_err(|_| "Engine lock failed")?
-            .undo(operation_id)
+        let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
+        let expected = engine.permission_epoch;
+        engine.undo_guarded(operation_id, || epoch.load(Ordering::SeqCst) == expected)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -163,33 +205,35 @@ fn correction(
     rule: bool,
     state: tauri::State<Shared>,
 ) -> Result<(), String> {
-    state
-        .engine
-        .lock()
-        .map_err(|_| "Engine lock failed")?
-        .correct(root_id, category, destination, rule)
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.correct(root_id, category, destination, rule)?;
+    engine.permission_epoch = epoch;
+    Ok(())
 }
 #[tauri::command]
 fn clear_learning(state: tauri::State<Shared>) -> Result<(), String> {
-    state
-        .engine
-        .lock()
-        .map_err(|_| "Engine lock failed")?
-        .clear_learning()
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.clear_learning()?;
+    engine.permission_epoch = epoch;
+    Ok(())
 }
 #[tauri::command]
 fn clear_rules(state: tauri::State<Shared>) -> Result<(), String> {
-    state
-        .engine
-        .lock()
-        .map_err(|_| "Engine lock failed")?
-        .clear_rules()
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.clear_rules()?;
+    engine.permission_epoch = epoch;
+    Ok(())
 }
 #[tauri::command]
 fn revoke(root_id: i64, app: tauri::AppHandle, state: tauri::State<Shared>) -> Result<(), String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
     let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
     let path = engine.roots.get(&root_id).map(|r| r.path.clone());
     engine.revoke(root_id)?;
+    engine.permission_epoch = epoch;
     if let Some(path) = path {
         app.run_on_main_thread(move || {
             #[cfg(target_os = "macos")]
@@ -231,6 +275,9 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
         let mut last = Instant::now() - Duration::from_secs(60);
         loop {
             let event = recv.recv_timeout(Duration::from_secs(5));
+            if matches!(event, Err(std::sync::mpsc::RecvTimeoutError::Disconnected)) {
+                std::thread::sleep(Duration::from_secs(5));
+            }
             let dirty = match event {
                 Ok(Ok(_)) => true,
                 Ok(Err(_)) => {
@@ -280,7 +327,15 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                                 if !engine.settings.monitoring {
                                     break;
                                 }
-                                let _ = engine.apply(p.id, false);
+                                let expected = engine.permission_epoch;
+                                if let Err(error) = engine.apply_guarded(p.id, false, || {
+                                    state.epoch.load(Ordering::SeqCst) == expected
+                                }) {
+                                    if !error.contains("approval") && !error.contains("rules") {
+                                        *state.notice.lock().unwrap() =
+                                            format!("Automatic action paused {error}");
+                                    }
+                                }
                             }
                         }
                     }
@@ -296,6 +351,8 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
 fn main() {
     let application = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            semantic_suggestions,
+            review_destination,
             duplicates,
             snapshot,
             choose_folder,
@@ -336,6 +393,7 @@ fn main() {
             let state = Shared {
                 engine: Arc::new(Mutex::new(engine)),
                 notice: Arc::new(Mutex::new(String::new())),
+                epoch: Arc::new(AtomicU64::new(0)),
             };
             app.manage(state.clone());
             monitor(app.handle().clone(), state);

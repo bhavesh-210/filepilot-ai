@@ -1,3 +1,13 @@
+# Native alpha implementation
+
+Added the React TypeScript and Tauri desktop app
+Added Rust exclusive moves journal recovery and guarded Undo
+Added macOS folder selection bookmark retention and login item integration
+Added background reconciliation autonomy controls explicit corrections and duplicate analysis
+Added advisory installed macOS English embeddings with an unavailable fallback
+Added synthetic Rust tests React workflow tests and the macOS build pipeline
+This is a development alpha and production release gates remain open
+
 # Destination and review foundations
 
 Added local lexical destination ranking and evaluation helpers

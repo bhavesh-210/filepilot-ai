@@ -89,6 +89,7 @@ pub struct Engine {
     db: Connection,
     pub settings: Settings,
     pub roots: HashMap<i64, Root>,
+    pub permission_epoch: u64,
     pending: HashMap<u64, Proposal>,
     next_id: u64,
 }
@@ -114,6 +115,7 @@ impl Engine {
             settings,
             roots: HashMap::new(),
             pending: HashMap::new(),
+            permission_epoch: 0,
             next_id: 1,
         })
     }
@@ -407,6 +409,14 @@ impl Engine {
         Ok(inventory)
     }
     pub fn apply(&mut self, id: u64, approved: bool) -> Result<i64> {
+        self.apply_guarded(id, approved, || true)
+    }
+    pub fn apply_guarded<F: Fn() -> bool>(
+        &mut self,
+        id: u64,
+        approved: bool,
+        permission_current: F,
+    ) -> Result<i64> {
         let p = self
             .pending
             .get(&id)
@@ -463,6 +473,15 @@ impl Engine {
         let digest = fs::digest(&from, &source, &current).map_err(message)?;
         self.db.execute("INSERT INTO operations(root_id,source,destination,identity,state,digest) VALUES(?,?,?,?,'pending',?)",params![root.id,p.source,destination,serde_json::to_string(&current).map_err(message)?,digest]).map_err(message)?;
         let operation = self.db.last_insert_rowid();
+        if !permission_current() {
+            self.db
+                .execute(
+                    "UPDATE operations SET state='cancelled' WHERE id=?",
+                    [operation],
+                )
+                .map_err(message)?;
+            return Err("Permissions changed before execution".into());
+        }
         // On any uncertain filesystem result leave pending for reconciliation
         fs::move_exclusive(&from, &source, &to, &target).map_err(message)?;
         let after = fs::identity(&to, &target).map_err(message)?;
@@ -479,6 +498,68 @@ impl Engine {
             .map_err(message)?;
         self.pending.remove(&id);
         Ok(operation)
+    }
+    pub fn analysis_text(&self, proposal_id: u64) -> Result<(String, bool)> {
+        let p = self.pending.get(&proposal_id).ok_or("Proposal expired")?;
+        let root = self.roots.get(&p.root_id).ok_or("Folder access revoked")?;
+        let (directory, name) = fs::parent(Path::new(&root.path), &p.source).map_err(message)?;
+        if fs::identity(&directory, &name).map_err(message)? != p.snapshot {
+            return Err("File changed since preview".into());
+        }
+        let extension = Path::new(&name)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if ["txt", "md", "csv", "log"].contains(&extension.as_str()) {
+            let text = fs::text_sample(&directory, &name, &p.snapshot).map_err(message)?;
+            Ok((format!("{name} {text}"), true))
+        } else {
+            Ok((name, false))
+        }
+    }
+    pub fn review_destination(&mut self, proposal_id: u64, category: String) -> Result<Proposal> {
+        if !CATEGORIES.contains(&category.as_str()) {
+            return Err("Invalid category".into());
+        }
+        let p = self
+            .pending
+            .get(&proposal_id)
+            .ok_or("Proposal expired")?
+            .clone();
+        if p.revision != self.settings.revision || p.reason.contains("Incomplete scan") {
+            return Err("Scan again before reviewing".into());
+        }
+        let root = self.roots.get(&p.root_id).ok_or("Folder access revoked")?;
+        let base = Path::new(&root.path);
+        let (from, name) = fs::parent(base, &p.source).map_err(message)?;
+        if fs::identity(&from, &name).map_err(message)? != p.snapshot {
+            return Err("Source changed".into());
+        }
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(message)?
+            .as_secs() as i64;
+        if now.saturating_sub(p.snapshot.mtime) < 10 || p.snapshot.size > 64 * 1024 * 1024 {
+            return Err("File stability or size limit".into());
+        }
+        let filename = if self.settings.rename {
+            normalized_name(&name)
+        } else {
+            name
+        };
+        let destination = format!("{category}/{filename}");
+        let (to, target) = fs::parent(base, &destination).map_err(message)?;
+        if fs::exists(&to, &target).map_err(message)? {
+            return Err("Destination collision".into());
+        }
+        let value = self.pending.get_mut(&proposal_id).unwrap();
+        value.category = category;
+        value.destination = Some(destination);
+        value.certain = false;
+        value.blocked = false;
+        value.reason = "User selected destination still requires explicit move approval".into();
+        Ok(value.clone())
     }
     pub fn duplicates(&self, id: i64) -> Result<serde_json::Value> {
         let root = self.roots.get(&id).ok_or("Folder is not authorized")?;
@@ -577,6 +658,9 @@ impl Engine {
             .map_err(message)
     }
     pub fn undo(&mut self, id: i64) -> Result<()> {
+        self.undo_guarded(id, || true)
+    }
+    pub fn undo_guarded<F: Fn() -> bool>(&mut self, id: i64, permission_current: F) -> Result<()> {
         let (root_id, source, destination, identity, state): (i64, String, String, String, String) =
             self.db
                 .query_row(
@@ -617,6 +701,12 @@ impl Engine {
                 [id],
             )
             .map_err(message)?;
+        if !permission_current() {
+            self.db
+                .execute("UPDATE operations SET state='applied' WHERE id=?", [id])
+                .map_err(message)?;
+            return Err("Permissions changed before Undo".into());
+        }
         fs::move_exclusive(&from, &current_name, &to, &original_name).map_err(message)?;
         self.db
             .execute("UPDATE operations SET state='undone' WHERE id=?", [id])

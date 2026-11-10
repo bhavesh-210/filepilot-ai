@@ -1,0 +1,131 @@
+# Native macOS alpha
+
+## What the app implements
+
+The desktop directory contains the React TypeScript frontend and Tauri application
+The native core is a separate Rust crate with no webview or network dependency
+A small Swift bridge handles system folder selection security scoped bookmarks login item registration and optional local English embeddings
+
+The macOS folder picker is the only path used to grant a new root
+Bookmarks are retained in the private local application database
+Stale or unavailable bookmarks require the user to choose the folder again
+Overlapping roots are rejected
+Full Disk Access Accessibility and Finder Automation are not requested
+The development build is not App Store sandboxed and must not be described as sandbox audited
+
+## First use
+
+Start with a disposable test folder
+Choose that folder through the app
+Create category folders only when requested
+Scan and review the preview
+Apply individual moves or explicitly acknowledge the preview to enable the current autonomy mode
+Background organization is gated until that acknowledgement
+Changing settings invalidates pending proposals
+Revoking access removes the root from active processing
+
+Full autonomy is the initial preference
+Smart approval never applies a proposal in the background
+Limited autonomy uses explicitly authorized category destination rules
+Renaming currently normalizes whitespace rather than inventing document titles
+Unknown or ambiguous classifications require explicit review
+
+## Filesystem boundaries
+
+The engine opens authorized roots and parent directories without following symlinks
+Projects generated folders common secret paths packages cloud placeholders hardlinks and special files are protected
+Partially downloaded temporary files are excluded
+File identity size timestamps and a SHA256 digest are verified around moves
+Files must have a modification time at least ten seconds old
+This age check and metadata comparison do not prove that another process has closed the file
+Moves are limited to regular single link files at most 64 MiB
+Destinations must be existing folders inside the same authorized root
+Cross volume moves are rejected rather than copied
+
+The final rename uses kernel exclusive destination flags
+No fallback that overwrites a destination is allowed
+Directory handles and identity checks reduce races but do not make an adversarial changing filesystem an atomic snapshot
+A directory renamed outside an authorized root while its handle remains open is a residual race requiring further security review
+Use the alpha with disposable folders only until the Mac acceptance and security gates pass
+
+## Journal Undo and crash recovery
+
+The SQLite journal records an intent before a move or rename
+Journal writes use full synchronous durability
+The engine records the resulting identity after exclusive rename and parent directory synchronization
+Interrupted moves and Undo are reconciled on restart only when the expected identity and content digest match an unambiguous location
+Ambiguous results are marked needs review
+Unresolved journal operations block further moves in that root
+Undo refuses changed files occupied original destinations and unauthorized roots
+
+The history contains relative paths hashes and metadata rather than document contents
+Category directory creation is not currently part of reversible file operation history
+A storage device filesystem or process failure can exceed the durability guarantees of these primitives
+
+## Background processing
+
+The notify recommended backend uses macOS FSEvents on macOS
+Events trigger reconciliation and a thirty second sweep covers missed events
+The event queue is bounded and events are coalesced
+The closed window is hidden while the app continues running
+Click the Dock icon to reopen it
+Quit stops the process
+Login item registration uses SMAppService and can require approval in System Settings
+
+Sleep pauses local execution
+The running process reconciles after wake
+Restart requires a functioning login item and bookmark resolution
+No execution occurs while the computer is shut down
+Real sleep lock restart and login behaviour has not been accepted on a user Mac yet
+
+## Duplicate analysis
+
+Duplicate detection is a separate explicit read only operation
+It hashes candidate files with matching sizes and reports matching SHA256 groups
+Files over 64 MiB are excluded and each request hashes at most 256 MiB
+Limits and errors can make the result partial
+Duplicate groups are observations rather than deletion permission
+Trash and permanent deletion are unavailable in this alpha
+
+## Local semantic inspection
+
+Inspect locally reads a selected pending text file only after the user requests inspection
+Supported content is UTF8 text markdown CSV and logs up to 64 KiB
+Only a bounded two thousand character sample is sent to the local framework
+Other types use filenames only
+PDF text inspection remains available in the separate Python prototype and is not integrated into the app
+Document strings are input data and are never executed as commands
+
+The Swift bridge uses the installed Apple English sentence embedding when available
+It makes no asset download request and has an explicit unavailable fallback
+The semantic result contains advisory category rankings rather than calibrated probabilities
+Choosing a semantic suggestion still requires a separate explicit move approval
+The automatic organizer does not execute semantic suggestions
+No independent accuracy claim is made
+The custom classifier remains a research module pending human labels and evaluation
+
+## Personalization
+
+Explicit category destination corrections are stored per authorized root
+They only affect future proposals within that root
+Disabling learning prevents applying or recording corrections
+Clearing learning removes logical correction records
+Approved limited mode rules have a separate clear control
+This is deterministic local preference learning rather than neural retraining
+No data is uploaded or shared with other users
+
+## Development builds
+
+The native workflow builds and archives a macOS application with executable permissions preserved
+Build artifacts are temporary development downloads rather than a signed public release
+Signing notarization update delivery and release security review remain pending
+No Apple developer credentials should be committed to this repository
+
+## Sources
+
+https://tauri.app/develop/calling-rust/
+https://tauri.app/security/capabilities/
+https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox
+https://developer.apple.com/documentation/servicemanagement/smappservice
+https://developer.apple.com/documentation/naturallanguage/nlembedding
+https://doc.rust-lang.org/std/fs/fn.rename.html

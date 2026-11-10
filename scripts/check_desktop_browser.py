@@ -14,7 +14,9 @@ window.__TAURI_INTERNALS__={
   if(command==='plugin:event|listen')return 1;
   if(command==='plugin:event|unlisten')return null;
   if(command==='snapshot')return {settings:{mode:'full',rename:true,monitoring:true,personalization:true,revision:0},roots:[{id:1,path:'/synthetic/demo',active:true,initial_reviewed:false}],history:window.testHistory||[],notice:''};
-  if(command==='scan')return {root_id:1,files:1,protected:1,errors:[],proposals:[{id:7,source:'lecture.txt',destination:'Education/lecture.txt',category:'Education',reason:'Category destination rule',blocked:false,rename:false}]};
+  if(command==='scan')return {root_id:1,files:1,protected:1,errors:[],proposals:[{id:7,source:window.syntheticSource||'lecture.txt',destination:'Education/lecture.txt',category:'Education',reason:'Category destination rule',blocked:false,rename:false}]};
+  if(command==='semantic_suggestions')return {available:true,content_used:true,model:'Synthetic test model',ranking:[{category:'Education',score:0.8}],scores_are_probabilities:false};
+  if(command==='review_destination')return {id:7,source:'lecture.txt',destination:'Education/lecture.txt',category:'Education',reason:'User selected destination still requires explicit move approval',blocked:false,rename:false};
   if(command==='apply'){window.testHistory=[{id:1,root_id:1,source:'lecture.txt',destination:'Education/lecture.txt',state:'applied'}];return 1;}
   if(command==='undo'){window.testHistory[0].state='undone';return null;}
   return null;
@@ -65,6 +67,25 @@ class DesktopBrowserTests(unittest.TestCase):
         page.get_by_label('Autonomy',exact=True).select_option('smart')
         page.get_by_text('Settings saved pending proposals expired',exact=True).wait_for()
         self.assertEqual(page.get_by_role('button',name='Approve this move').count(),0)
+        self.assertFalse(self.errors,self.errors)
+
+    def test_semantic_choice_still_needs_explicit_move(self):
+        page=self.open(True)
+        page.get_by_role('button',name='demo',exact=True).click()
+        page.get_by_role('button',name='Scan and preview').click()
+        page.get_by_role('button',name='Inspect locally').click()
+        page.get_by_role('button',name='Education',exact=True).click()
+        page.get_by_text('Destination selected explicitly approve the move separately',exact=True).wait_for()
+        self.assertEqual(page.get_by_text('No file operations yet',exact=True).count(),1)
+        self.assertTrue(page.get_by_role('button',name='Approve this move').is_enabled())
+        self.assertFalse(self.errors,self.errors)
+    def test_untrusted_filename_is_text(self):
+        page=self.open(True)
+        page.evaluate("window.syntheticSource='<img src=x onerror=alert(1)>.txt'")
+        page.get_by_role('button',name='demo',exact=True).click()
+        page.get_by_role('button',name='Scan and preview').click()
+        page.get_by_text('<img src=x onerror=alert(1)>.txt',exact=True).wait_for()
+        self.assertEqual(page.locator('img').count(),0)
         self.assertFalse(self.errors,self.errors)
 
 if __name__=='__main__':unittest.main(verbosity=2)

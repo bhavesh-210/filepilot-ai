@@ -352,3 +352,46 @@ pub fn digest(parent: &File, name: &str, expected: &Identity) -> io::Result<Stri
     }
     Ok(format!("{:x}", hash.finalize()))
 }
+pub fn text_sample(parent: &File, name: &str, expected: &Identity) -> io::Result<String> {
+    use std::io::Read;
+    use std::os::unix::fs::MetadataExt;
+    if &identity(parent, name)? != expected {
+        return Err(err("File changed before text inspection"));
+    }
+    let fd = unsafe {
+        libc::openat(
+            parent.as_raw_fd(),
+            c(name)?.as_ptr(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC,
+        )
+    };
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let file = unsafe { File::from_raw_fd(fd) };
+    let metadata = file.metadata()?;
+    if metadata.dev() != expected.dev
+        || metadata.ino() != expected.ino
+        || !metadata.is_file()
+        || metadata.nlink() != 1
+        || dataless(fd)?
+    {
+        return Err(err("File changed while opening"));
+    }
+    let mut bytes = Vec::new();
+    file.take(65537).read_to_end(&mut bytes)?;
+    if bytes.len() > 65536 {
+        return Err(err("Text inspection limit is 64 KiB"));
+    }
+    let text = String::from_utf8(bytes).map_err(|_| err("UTF8 text required"))?;
+    if text
+        .chars()
+        .any(|c| c.is_control() && !['\t', '\r', '\n'].contains(&c))
+    {
+        return Err(err("Binary data is not supported"));
+    }
+    if &identity(parent, name)? != expected {
+        return Err(err("File changed during inspection"));
+    }
+    Ok(text.chars().take(2000).collect())
+}
