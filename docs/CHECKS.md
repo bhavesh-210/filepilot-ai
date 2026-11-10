@@ -18,7 +18,7 @@ Core mode does not fit a model even when optional dependencies are installed
 
 Optional ML tests are reported as omitted rather than passed
 
-The current core suite has 47 tests
+The JSON report records how many core tests ran
 
 A missing dataset malformed report failed test or empty test discovery is a failed check
 
@@ -37,7 +37,7 @@ This mode also runs the five optional ML tests and refits the baseline on synthe
 
 It compares rules and ML on train and validation data and recomputes the fixed threshold diagnostic
 
-The current research suite has 52 tests
+The JSON report records how many tests ran with research dependencies
 
 No test split is scored no production threshold is selected and no model is saved
 

@@ -33,7 +33,7 @@ These steps show what has been added here rather than when the local work was or
 
 The scanner has 21 focused tests
 
-The current repository check includes 47 core tests and 52 tests when optional ML checks are enabled
+The project check records its current test counts in the JSON report
 
 Both modes have passed in the development workspace
 
@@ -55,3 +55,14 @@ Independent human labels and a separately authored final evaluation set are stil
 Embeddings folder ranking the desktop interface filesystem operations Undo monitoring and personalization remain later milestones
 
 The scanner stays read only until the next milestone is designed and tested
+
+
+## Document inspection milestone
+
+- [x] Add explicit local text extraction with bounded input and output
+- [x] Keep extracted text out of reports unless requested
+- [x] Test path boundaries file changes and untrusted text
+- [ ] Add optional PDF extraction in a separate bounded worker
+- [ ] Run document checks on GitHub with the optional parser installed
+
+This milestone extracts text rather than claiming semantic understanding or automatic organisation

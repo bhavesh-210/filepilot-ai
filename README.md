@@ -121,3 +121,14 @@ The command prints a JSON report and exits unsuccessfully if a check fails
 Pending human labels are reported as pending rather than counted as reviewed
 
 The research reports and their limits are documented in the docs folder
+
+
+## Inspecting document contents
+
+There is a separate opt in inspector for a single explicitly selected local document
+
+The metadata scanner stays unchanged and extracted text is hidden from reports unless requested
+
+The current text formats are text Markdown CSV and log files
+
+See docs/CONTENT.md for the supported formats limits and safety boundaries

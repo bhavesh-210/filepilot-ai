@@ -1,5 +1,13 @@
 # Changelog
 
+## Inspect one explicitly selected text document
+
+- Add opt in UTF text extraction without changing the metadata scanner
+- Hide extracted text unless requested
+- Reject unsafe paths projects hardlinks and changing files
+- Check dataless flags and bound input and returned characters
+- Add 14 synthetic extraction tests
+
 ## Run complete project checks on GitHub
 
 - Run core checks on Linux and macOS
