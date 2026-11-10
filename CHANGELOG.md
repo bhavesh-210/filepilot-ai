@@ -1,5 +1,12 @@
 # Changelog
 
+## Run project checks with one command
+
+- Check tests metadata datasets review records and recorded experiments
+- Run a synthetic CLI scan without touching personal folders
+- Keep optional model fitting separate from core checks
+- Emit a JSON report and fail when a check fails
+
 ## Prepare a separate review pool
 
 - Add 40 unlabeled synthetic examples without model predictions

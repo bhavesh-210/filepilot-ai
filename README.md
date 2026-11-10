@@ -18,7 +18,9 @@ I am adding this existing work to the repository in small steps
 
 This repository now includes the scanner and its automated tests
 
-The ML experiments and datasets will follow in separate changes
+The repository also includes synthetic datasets and local ML experiments
+
+The experiments remain separate from the scanner
 
 ## What I want to build
 
@@ -94,3 +96,26 @@ GitHub runs the scanner tests after each push to main
 The checks cover Python 3 point 12 and 3 point 14 on Linux and macOS
 
 Open the Actions tab to see the results for a commit
+
+
+## One command for project checks
+
+GitHub can run the same project checks without asking you to copy commands
+
+The core check uses only the standard library and does not fit a model
+
+```sh
+PYTHONPATH=src python3 -m filepilot.check
+```
+
+Optional research checks also fit the local baseline and measure uncertain predictions
+
+```sh
+PYTHONPATH=src python3 -m filepilot.check --with-ml
+```
+
+The command prints a JSON report and exits unsuccessfully if a check fails
+
+Pending human labels are reported as pending rather than counted as reviewed
+
+The research reports and their limits are documented in the docs folder
