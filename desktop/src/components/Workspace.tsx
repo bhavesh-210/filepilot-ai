@@ -408,7 +408,7 @@ export function Workspace({
                       </td>
                       <td>
                         {r.content
-                          ? "Filename or complete short text rule"
+                          ? "Filename or complete short text and PDF rule"
                           : "Filename category only"}
                       </td>
                     </tr>
@@ -483,15 +483,22 @@ export function Workspace({
             </select>
           </label>
           <label className="field">
-            File
+            {wholeFolder ? "Folder" : "File"}
             <select
-              aria-label="Transfer source file"
+              aria-label={
+                wholeFolder ? "Transfer source folder" : "Transfer source file"
+              }
               disabled={disabled || !!plan}
               value={source}
               onChange={(e) => setSource(e.target.value)}
             >
-              <option value="">Choose a file</option>
-              {sourceInventory?.items?.map((path) => (
+              <option value="">
+                {wholeFolder ? "Choose a folder" : "Choose a file"}
+              </option>
+              {(wholeFolder
+                ? sourceInventory?.folders
+                : sourceInventory?.items
+              )?.map((path) => (
                 <option key={path}>{path}</option>
               ))}
             </select>

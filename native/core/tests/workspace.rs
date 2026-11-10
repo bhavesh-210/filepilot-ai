@@ -240,7 +240,7 @@ fn source_and_destination_setup_are_required() {
     let (d, mut e, a, b) = setup();
     let other = d.path().join("Desktop");
     fs::create_dir(&other).unwrap();
-    let c = e.authorize(other, "c".into()).unwrap();
+    let c = e.authorize(other.canonicalize().unwrap(), "c".into()).unwrap();
     assert!(e
         .prepare_transfer(a, "Archive/scan001.txt".into(), c, "".into())
         .is_err());

@@ -294,7 +294,7 @@ class DesktopBrowserTests(unittest.TestCase):
         page=self.open(multi=True);self.nav(page,'Main locations')
         page.get_by_label('Transfer item type').select_option('folder')
         page.get_by_label('Transfer source location').select_option('1')
-        page.get_by_label('Transfer source file').select_option('College')
+        page.get_by_label('Transfer source folder').select_option('College')
         page.get_by_label('Transfer target location').select_option('2')
         page.get_by_role('button',name='Preview transfer',exact=True).click()
         page.get_by_role('button',name='Confirm transfer',exact=True).wait_for()
