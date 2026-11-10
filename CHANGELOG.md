@@ -1,5 +1,12 @@
 # Changelog
 
+## Run complete project checks on GitHub
+
+- Run core checks on Linux and macOS
+- Run optional research diagnostics in a separate Linux job
+- Save JSON reports with each run
+- Keep failed check exit codes visible through the report pipeline
+
 ## Run project checks with one command
 
 - Check tests metadata datasets review records and recorded experiments

@@ -58,3 +58,20 @@ Recorded reports are checked for dataset hashes and internal consistency in core
 Fresh model results are only recomputed in research mode
 
 The dataset review rights and research limitations stay visible in both modes
+
+
+## GitHub automation
+
+Each push to main runs four core jobs across Linux macOS and two Python versions
+
+A separate Linux job installs the optional research dependencies and runs the full research mode
+
+The reports are visible in job logs and are also saved as artifacts for seven days
+
+The workflow uses read only repository permissions and pinned Node 24 actions
+
+The shell keeps pipeline failures visible even when the report is copied through tee
+
+An unsuccessful project check fails its GitHub job
+
+The research job validates the experimental pipeline rather than a production model

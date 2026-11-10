@@ -1,4 +1,4 @@
-name: scanner checks
+name: project checks
 
 on:
   push:
@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
-    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+  core:
+    name: Core Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
@@ -22,6 +22,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ['3.12', '3.14']
+    defaults:
+      run:
+        shell: bash
     env:
       PYTHONPATH: src
     steps:
@@ -33,5 +36,49 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Run the scanner tests
-        run: python -m unittest discover -s tests -v
+      - name: Check the project without ML dependencies
+        run: |
+          mkdir -p reports
+          python -m filepilot.check | tee reports/core.json
+      - name: Save the core check report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: core-${{ matrix.os }}-python-${{ matrix.python-version }}
+          path: reports/core.json
+          if-no-files-found: error
+          retention-days: 7
+
+  research:
+    name: Local ML research on Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONPATH: src
+    steps:
+      - name: Get the project files
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install the optional research dependencies
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-ml.txt
+      - name: Run the research checks
+        run: |
+          mkdir -p reports
+          python -m filepilot.check --with-ml | tee reports/research.json
+      - name: Save the research check report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: research-linux-python-3.12
+          path: reports/research.json
+          if-no-files-found: error
+          retention-days: 7

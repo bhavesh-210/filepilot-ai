@@ -91,11 +91,13 @@ See docs/SCANNER.md for the report fields and safety boundaries
 
 ## Automatic checks
 
-GitHub runs the scanner tests after each push to main
+GitHub runs core project checks after each push to main
 
-The checks cover Python 3 point 12 and 3 point 14 on Linux and macOS
+The core checks cover Python 3 point 12 and 3 point 14 on Linux and macOS
 
-Open the Actions tab to see the results for a commit
+A separate Linux job installs the optional research dependencies and runs fresh ML diagnostics
+
+Open the Actions tab to see results for a commit and the JSON reports saved with each run
 
 
 ## One command for project checks
