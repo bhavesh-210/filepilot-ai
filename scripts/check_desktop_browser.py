@@ -99,4 +99,13 @@ class DesktopBrowserTests(unittest.TestCase):
         self.assertTrue(page.get_by_role('button',name='Approve this move').is_enabled())
         self.assertFalse(self.errors,self.errors)
 
+    def test_remembering_a_destination_does_not_approve_a_move(self):
+        page=self.open(True)
+        page.get_by_role('button',name='demo',exact=True).click()
+        page.get_by_role('button',name='Scan and preview').click()
+        page.get_by_role('button',name='Remember this destination').click()
+        page.get_by_text('Explicit file example saved future nearest matches will still require review',exact=True).wait_for()
+        self.assertEqual(page.get_by_text('No file operations yet',exact=True).count(),1)
+        self.assertFalse(self.errors,self.errors)
+
 if __name__=='__main__':unittest.main(verbosity=2)

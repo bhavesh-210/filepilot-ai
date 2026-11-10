@@ -107,3 +107,6 @@ The native core suite also tests the parser protocol timeout process group termi
 The Mac build job runs five synthetic PDFKit worker tests before bundling the helper
 The React workflow covers cancelling Trash without approving an ordinary move
 No automated test accepts a real system permission dialog or uses a personal document
+
+The packaged PDF helper is tested again from inside the built app bundle to catch missing resources and executable permission errors
+Remembering a destination is tested separately from approving a move

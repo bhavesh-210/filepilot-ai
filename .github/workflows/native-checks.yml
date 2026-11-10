@@ -60,6 +60,10 @@ jobs:
       - name: Compile and bundle the app
         working-directory: desktop
         run: npm run tauri -- build --target universal-apple-darwin --bundles app
+      - name: Test the parser inside the built application bundle
+        env:
+          FILEPILOT_PDF_HELPER: desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/FilePilot AI.app/Contents/Resources/filepilot-pdf
+        run: python3 scripts/check_native_pdf.py
       - name: Preserve the application bundle and executable permissions
         run: ditto -c -k --keepParent "desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/FilePilot AI.app" FilePilot-macOS-development.zip
       - name: Save the unsigned development app

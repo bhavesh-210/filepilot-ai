@@ -1,10 +1,11 @@
 """Test the isolated native parser using generated synthetic PDF bytes only"""
 import base64
 import json
+import os
 from pathlib import Path
 import subprocess
 import unittest
-HELPER=Path(__file__).resolve().parents[1]/'desktop/src-tauri/parser/filepilot-pdf'
+HELPER=Path(os.environ.get('FILEPILOT_PDF_HELPER',str(Path(__file__).resolve().parents[1]/'desktop/src-tauri/parser/filepilot-pdf'))).resolve()
 
 def document(text='Synthetic lecture notes',pages=1):
     objects=[b'<< /Type /Catalog /Pages 2 0 R >>',b'',b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
