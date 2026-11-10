@@ -9,10 +9,10 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 MOCK = '''
 window.testCalls=[];
-window.testSettings={mode:'full',rename:true,monitoring:true,personalization:true,trash_proposals:true,revision:0};
+window.testSettings={mode:'full',rename:true,monitoring:true,personalization:true,trash_proposals:true,review_notifications:false,revision:0};
 window.testHistory=[];
 window.testFolder={id:1,path:'/synthetic/demo',active:true,initial_reviewed:!window.testSetup};
-window.inventory=()=>({root_id:1,files:1,folders:['College'],items:['lecture.txt'],protected:1,errors:[],proposals:window.testExpired||window.testHistory.some(o=>o.state==='applied')?[]:[{id:7,root_id:1,source:window.syntheticSource||'lecture.txt',destination:'College/lecture.txt',category:'Education',reason:'Reuse an existing category folder',blocked:false,rename:false,certain:true}]});
+window.inventory=()=>({root_id:1,files:1,folders:['College'],items:['lecture.txt'],protected:1,errors:[],proposals:window.testKept||window.testExpired||window.testHistory.some(o=>o.state==='applied')?[]:[{id:7,root_id:1,source:window.syntheticSource||'lecture.txt',destination:'College/lecture.txt',category:'Education',reason:'Reuse an existing category folder',blocked:false,rename:false,certain:true}]});
 window.__TAURI_INTERNALS__={
  transformCallback:(handler)=>{window.testTauriEvent=handler;return 1;},unregisterCallback:()=>{},
  invoke:async(command,args)=>{
@@ -25,6 +25,11 @@ window.__TAURI_INTERNALS__={
   if(command==='finish_setup'){if(args.token!==42)throw 'Wrong token';window.testFolder.initial_reviewed=true;return null;}
   if(command==='update_settings'){window.testSettings=args.settings;window.testExpired=true;return null;}
   if(command==='scan'){window.testExpired=false;return window.inventory();}
+  if(command==='summarize_file')return {supported:true,excerpts:['The invoice payment amount is due on Friday'],scope:'UTF8 sample up to 2000 characters',partial:true,method:'Local extractive overview using quoted passages',categories:['Finance'],destinations:[{folder:'College',reason:'Shared terms in sampled neighbouring contents',similar_files:['College/reference.txt']}],suggested_title:'Financial records',recommendation:'Compare related folders or Keep here'};
+  if(command==='keep_here'){window.testKept=true;return null;}
+  if(command==='clear_kept'){window.testKept=false;return null;}
+  if(command==='review_folder')return {...window.inventory().proposals[0],destination:args.folder+'/lecture.txt',certain:false};
+  if(command==='request_notifications')return {requested:true};
   if(command==='semantic_suggestions')return {available:true,content_used:true,model:'Synthetic model',ranking:[{category:'Education',score:0.8}]};
   if(command==='review_destination')return {...window.inventory().proposals[0],certain:false,reason:'User selected destination still requires explicit move approval'};
   if(command==='collection_title')return 'Important study files';
@@ -198,10 +203,41 @@ class DesktopBrowserTests(unittest.TestCase):
         page.get_by_text('Trash verification was interrupted Check Activity for any completed or interrupted changes',exact=True).wait_for()
         self.nav(page,'Activity');page.get_by_text('needs review',exact=True).wait_for()
         self.assertFalse(self.errors,self.errors)
+    def test_summary_explains_content_without_executing_an_action(self):
+        page=self.open();self.review(page);page.get_by_role('button',name='Summarise',exact=True).click()
+        page.get_by_text('The invoice payment amount is due on Friday',exact=True).wait_for()
+        self.assertEqual(page.get_by_text('Partial sample',exact=True).count(),1)
+        self.assertNotIn('apply',page.evaluate('window.testCalls'))
+        self.assertTrue(page.get_by_role('button',name='Keep here',exact=True).is_enabled())
+    def test_keep_here_removes_the_suspected_file_without_moving(self):
+        page=self.open();self.review(page);page.get_by_role('button',name='Keep here',exact=True).click()
+        page.get_by_role('heading',name='Nothing waiting here').wait_for()
+        self.assertNotIn('apply',page.evaluate('window.testCalls'))
+        self.assertEqual(page.evaluate('window.testHistory.length'),0)
+    def test_summary_related_folder_move_needs_an_explicit_click(self):
+        page=self.open();self.review(page);page.get_by_role('button',name='Summarise',exact=True).click()
+        page.get_by_role('button',name='Move to College',exact=True).click()
+        page.get_by_role('heading',name='Nothing waiting here').wait_for()
+        self.assertIn('review_folder',page.evaluate('window.testCalls'))
+        self.assertIn('apply',page.evaluate('window.testCalls'))
+    def test_summary_can_seed_a_new_named_collection(self):
+        page=self.open();self.review(page);page.get_by_role('button',name='Summarise',exact=True).click()
+        page.get_by_role('button',name='Create a titled collection',exact=True).click()
+        page.get_by_label('Collection folder title').wait_for()
+        self.assertEqual(page.get_by_label('Collection folder title').input_value(),'Financial records')
+        self.assertTrue(page.get_by_label('Select lecture.txt',exact=True).is_checked())
+        self.assertNotIn('apply_collection',page.evaluate('window.testCalls'))
+    def test_review_notifications_are_an_explicit_opt_in(self):
+        page=self.open();self.nav(page,'Preferences')
+        self.assertNotIn('request_notifications',page.evaluate('window.testCalls'))
+        page.get_by_label('Notify me when files need attention').check()
+        page.get_by_text('Preferences saved pending proposals will be refreshed',exact=True).wait_for()
+        self.assertIn('request_notifications',page.evaluate('window.testCalls'))
     def test_visual_snapshots(self):
         directory=ROOT/'desktop/test-results';directory.mkdir(exist_ok=True)
         page=self.open();page.screenshot(path=str(directory/'overview.png'),full_page=True)
         self.review(page);page.screenshot(path=str(directory/'review.png'),full_page=True)
+        page.get_by_role('button',name='Summarise',exact=True).click();page.get_by_text('The invoice payment amount is due on Friday',exact=True).wait_for();page.screenshot(path=str(directory/'summary.png'),full_page=True)
         self.nav(page,'Collections');page.screenshot(path=str(directory/'collections.png'),full_page=True)
         page=self.open(setup=True);page.screenshot(path=str(directory/'setup.png'),full_page=True)
         self.assertFalse(self.errors,self.errors)

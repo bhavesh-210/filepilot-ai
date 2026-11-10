@@ -46,6 +46,7 @@ fn main() {
             "AppKit",
             "ServiceManagement",
             "NaturalLanguage",
+            "UserNotifications",
         ] {
             println!("cargo:rustc-link-lib=framework={name}");
         }

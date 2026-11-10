@@ -54,3 +54,16 @@ Do not remove macOS quarantine attributes or weaken system security to make acce
 - [ ] Start maintenance and observe automatic inbox updates without clicking scan
 - [ ] Enable startup in onboarding and verify the real system approval and next sign in behavior
 - [ ] Pause and revoke access while analysis is running and verify subsequent changes are cancelled
+
+## Recursive summaries and attention
+
+- [ ] Verify ordinary files at several subfolder depths enter review without opening them manually
+- [ ] Verify manifest projects and README source layouts stay excluded
+- [ ] Summarise nested text and valid PDFs and compare quoted passages with source contents
+- [ ] Confirm partial PDF labels for more than five pages and explicit unsupported image behavior
+- [ ] Keep a file here then relaunch and confirm it stays out of the inbox until changed
+- [ ] Move to a related existing folder only after an explicit click then Undo it
+- [ ] Create a titled collection from a summary without selecting the same file again
+- [ ] Request notifications once and test allowed denied and later changed system permissions
+- [ ] Confirm notifications do not disclose filenames paths or contents
+- [ ] Confirm notification activation and background delivery on the installed app

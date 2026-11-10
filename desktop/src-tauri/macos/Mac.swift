@@ -110,3 +110,24 @@ public func confirmTrash(_ source:UnsafePointer<CChar>)->UnsafeMutablePointer<CC
         return output(["confirmed":true,"trash_root":trash.resolvingSymlinksInPath().path])
     } catch {return output(["error":"System Trash is unavailable no file was moved"])}
 }
+
+import UserNotifications
+@_cdecl("fp_request_notifications")
+public func requestReviewNotifications()->UnsafeMutablePointer<CChar>? {
+    guard Bundle.main.bundleIdentifier != nil else {return output(["error":"Install the application before requesting notifications"])}
+    UNUserNotificationCenter.current().requestAuthorization(options:[.alert,.sound]) { _,_ in }
+    return output(["requested":true,"delivery":"Controlled by macOS notification permissions"])
+}
+@_cdecl("fp_notify_review")
+public func notifyReview(_ count:Int32) {
+    guard Bundle.main.bundleIdentifier != nil else {return}
+    let center=UNUserNotificationCenter.current()
+    center.getNotificationSettings { settings in
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {return}
+        let content=UNMutableNotificationContent()
+        content.title="Some files need your attention"
+        content.body="Open FilePilot Review inbox to summarise and choose what happens next for \(count) files"
+        content.sound = .default
+        center.add(UNNotificationRequest(identifier:"filepilot-review",content:content,trigger:nil)) { _ in }
+    }
+}

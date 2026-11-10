@@ -5,6 +5,7 @@ export type Settings = {
   monitoring: boolean;
   personalization: boolean;
   trash_proposals: boolean;
+  review_notifications: boolean;
   revision: number;
 };
 export type Folder = {

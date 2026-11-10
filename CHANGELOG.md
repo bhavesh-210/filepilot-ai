@@ -1,3 +1,16 @@
+# Recursive review and local summaries
+
+Analysed ordinary nested files instead of skipping existing collections entirely
+Kept nested relocation suggestions behind review to avoid flattening folders
+Added local extractive overviews for bounded text and PDF samples
+Compared sampled neighbouring text and existing folders for related destinations
+Added persistent Keep here decisions that expire when the file changes
+Added a summary shortcut into a preselected titled collection
+Added optional local macOS review notifications with count only messages and a cooldown
+Extended source project protection to common README and source layouts
+Fixed directory enumeration offsets so repeated project checks do not consume scanner entries
+Added deeper synthetic acceptance fixtures and summary workflow tests
+
 # Important collections and selected file cleanup
 
 Added a Collections screen for selecting ordinary files inside approved folders

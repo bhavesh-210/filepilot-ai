@@ -39,8 +39,10 @@ Pause settings changes and revocation update action permissions
 ## Structure strategy and present limits
 
 The scanner first inventories safe directories and file metadata
-It then plans loose files at the selected root and directly inside Desktop Downloads Documents or Inbox
-Nested collections are inventoried but their files are not extracted or flattened
+It analyses all ordinary nested files and plans review actions where appropriate
+Known files already matching a meaningful ancestor category folder can remain without a proposal
+Unknown or potentially misfiled nested documents are shown in Review inbox
+Nested suggestions always require explicit review so recursive analysis does not automatically flatten collections
 Software projects app bundles common secret paths hidden entries and dataless cloud placeholders are excluded from traversal
 Explicitly selected roots still pass the existing protected component checks
 

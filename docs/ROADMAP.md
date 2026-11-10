@@ -127,3 +127,17 @@ The production release gates remain in IMPLEMENTATION_STATUS
 - [x] Preflight grouped moves and report partial completion honestly
 - [x] Test collections with synthetic data
 - [ ] Validate the complete collection and Trash flow on a real Mac
+
+## Recursive assisted review
+
+- [x] Analyse ordinary nested files instead of skipping their folders
+- [x] Preserve detected coding projects and protect common markerless source layouts
+- [x] Show sampled local text and PDF overviews
+- [x] Suggest related existing folders using bounded local evidence
+- [x] Keep files in place with an explicit persistent decision
+- [x] Seed a titled collection from a summary
+- [x] Implement optional local review notifications
+- [x] Create a more realistic deeply nested synthetic test pack
+- [ ] Verify notification consent delivery activation and lifecycle on a real installed Mac app
+- [ ] Add audited support for more document formats and OCR
+- [ ] Evaluate richer local summarization models with licensed reviewed data

@@ -130,7 +130,7 @@ pub fn dataless(fd: i32) -> io::Result<bool> {
     }
 }
 pub fn project(fd: i32) -> bool {
-    [
+    let marked = [
         ".git",
         "package.json",
         "pyproject.toml",
@@ -154,7 +154,52 @@ pub fn project(fd: i32) -> bool {
         }) == 0
             && (st.st_mode & libc::S_IFMT == libc::S_IFREG
                 || (*name == ".git" && st.st_mode & libc::S_IFMT == libc::S_IFDIR))
-    })
+    });
+    if marked {
+        return true;
+    }
+    let duplicate = unsafe { libc::dup(fd) };
+    if duplicate < 0 {
+        return true;
+    }
+    let directory = unsafe { File::from_raw_fd(duplicate) };
+    let Ok(entries) = names(&directory) else {
+        return true;
+    };
+    let mut code = 0;
+    let mut readme = false;
+    let mut src = false;
+    for name in entries {
+        let mut st = unsafe { std::mem::zeroed::<libc::stat>() };
+        if unsafe {
+            libc::fstatat(
+                fd,
+                c(&name).unwrap().as_ptr(),
+                &mut st,
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        } != 0
+        {
+            continue;
+        }
+        let regular = st.st_mode & libc::S_IFMT == libc::S_IFREG;
+        if regular && name.to_lowercase().starts_with("readme") {
+            readme = true;
+        }
+        if name == "src" && st.st_mode & libc::S_IFMT == libc::S_IFDIR {
+            src = true;
+        }
+        let extension = Path::new(&name)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        if regular
+            && ["py", "rs", "js", "ts", "java", "c", "cpp", "swift", "go"].contains(&extension)
+        {
+            code += 1;
+        }
+    }
+    readme && (code >= 2 || src)
 }
 pub fn root_checked(path: &Path, expected: (u64, u64)) -> io::Result<File> {
     use std::os::unix::fs::MetadataExt;
@@ -275,7 +320,14 @@ pub fn move_exclusive(from: &File, source: &str, to: &File, destination: &str) -
     Ok(())
 }
 pub fn names(directory: &File) -> io::Result<Vec<String>> {
-    let duplicate = unsafe { libc::dup(directory.as_raw_fd()) };
+    // A fresh open description keeps enumeration offsets independent of project checks
+    let duplicate = unsafe {
+        libc::openat(
+            directory.as_raw_fd(),
+            c".".as_ptr(),
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
     if duplicate < 0 {
         return Err(io::Error::last_os_error());
     }

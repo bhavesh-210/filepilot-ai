@@ -17,7 +17,11 @@ export function Collections({
   onTask,
   onMessage,
   onChanged,
+  initialSources = [],
+  initialTitle = "",
 }: {
+  initialSources?: string[];
+  initialTitle?: string;
   root: Folder | undefined;
   inventory: Inventory | undefined;
   busy: boolean;
@@ -27,9 +31,9 @@ export function Collections({
   onMessage: (text: string) => void;
   onChanged: () => Promise<unknown>;
 }) {
-  const [selected, setSelected] = useState<string[]>([]),
+  const [selected, setSelected] = useState<string[]>(initialSources),
     [query, setQuery] = useState(""),
-    [title, setTitle] = useState(""),
+    [title, setTitle] = useState(initialTitle),
     [existing, setExisting] = useState(""),
     [create, setCreate] = useState(true),
     [plan, setPlan] = useState<Plan | null>(null);

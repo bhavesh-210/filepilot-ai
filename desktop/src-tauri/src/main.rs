@@ -19,6 +19,8 @@ struct Shared {
 }
 #[cfg(target_os = "macos")]
 extern "C" {
+    fn fp_request_notifications() -> *mut libc::c_char;
+    fn fp_notify_review(count: i32);
     fn fp_confirm_trash(source: *const libc::c_char) -> *mut libc::c_char;
     fn fp_semantic_rank(input: *const libc::c_char) -> *mut libc::c_char;
     fn fp_choose_roots() -> *mut libc::c_char;
@@ -276,6 +278,83 @@ async fn reconcile(state: tauri::State<'_, Shared>) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn summarize_file(
+    proposal_id: u64,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Shared>,
+) -> Result<filepilot_core::FileSummary, String> {
+    let engine = state.engine.clone();
+    let helper = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("filepilot-pdf");
+    tauri::async_runtime::spawn_blocking(move || {
+        let payload = engine
+            .lock()
+            .map_err(|_| "Engine lock failed")?
+            .pdf_snapshot(proposal_id);
+        let parsed = match payload {
+            Ok(Some(bytes)) => Some(
+                pdf::inspect(&helper, bytes)
+                    .unwrap_or_else(|error| serde_json::json!({"status":"skipped","reason":error})),
+            ),
+            Ok(None) => None,
+            Err(error) => Some(serde_json::json!({"status":"skipped","reason":error})),
+        };
+        engine
+            .lock()
+            .map_err(|_| "Engine lock failed")?
+            .summary(proposal_id, parsed.as_ref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+fn keep_here(proposal_id: u64, state: tauri::State<Shared>) -> Result<(), String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.permission_epoch = epoch;
+    engine.keep_here(proposal_id)
+}
+#[tauri::command]
+fn clear_kept(state: tauri::State<Shared>) -> Result<(), String> {
+    state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .clear_kept()
+}
+#[tauri::command]
+fn review_folder(
+    proposal_id: u64,
+    folder: String,
+    state: tauri::State<Shared>,
+) -> Result<filepilot_core::Proposal, String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.permission_epoch = epoch;
+    engine.review_folder(proposal_id, folder)
+}
+#[tauri::command]
+async fn request_notifications(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let (send, recv) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        #[cfg(target_os = "macos")]
+        let result = unsafe { native_json(fp_request_notifications()) };
+        #[cfg(not(target_os = "macos"))]
+        let result: Result<serde_json::Value, String> = Err("macOS required".into());
+        let _ = send.send(result);
+    })
+    .map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        recv.recv()
+            .map_err(|_| "Notification request ended".to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 async fn semantic_suggestions(
     proposal_id: u64,
     app: tauri::AppHandle,
@@ -438,6 +517,8 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
             .ok();
         let mut watched = HashSet::<PathBuf>::new();
         let mut last = Instant::now() - Duration::from_secs(60);
+        let mut notified = HashSet::<(i64, u64)>::new();
+        let mut last_notification = Instant::now() - Duration::from_secs(1000);
         loop {
             let event = recv.recv_timeout(Duration::from_secs(5));
             if matches!(event, Err(std::sync::mpsc::RecvTimeoutError::Disconnected)) {
@@ -523,6 +604,34 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                     }
                 }
             }
+            let (notifications, pending) = {
+                let engine = state.engine.lock().unwrap();
+                (
+                    engine.settings.review_notifications,
+                    engine
+                        .inventories()
+                        .iter()
+                        .flat_map(|i| {
+                            i.proposals
+                                .iter()
+                                .map(|p| (p.root_id, p.id))
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<HashSet<_>>(),
+                )
+            };
+            if notifications
+                && !pending.is_empty()
+                && !pending.is_subset(&notified)
+                && last_notification.elapsed() >= Duration::from_secs(900)
+            {
+                #[cfg(target_os = "macos")]
+                unsafe {
+                    fp_notify_review(pending.len().min(i32::MAX as usize) as i32)
+                };
+                notified = pending;
+                last_notification = Instant::now();
+            }
             let _ = app.emit(
                 "filepilot-updated",
                 serde_json::json!({"applied":applied,"root_ids":applied_roots}),
@@ -533,6 +642,11 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
 fn main() {
     let application = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            summarize_file,
+            keep_here,
+            clear_kept,
+            review_folder,
+            request_notifications,
             collection_title,
             plan_collection,
             cancel_collection,

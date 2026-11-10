@@ -34,7 +34,7 @@ export function Preferences({
         <span>
           <b>Build on my folder structure</b>
           <small>
-            Reuse clearly named folders and leave existing collections together
+            Reuse clearly named folders and review nested misfiles before moving
           </small>
         </span>
         <input
@@ -45,7 +45,13 @@ export function Preferences({
         />
       </label>
       {(
-        ["rename", "monitoring", "personalization", "trash_proposals"] as const
+        [
+          "rename",
+          "monitoring",
+          "personalization",
+          "trash_proposals",
+          "review_notifications",
+        ] as const
       ).map((key) => (
         <label className="preference" key={key}>
           <span>
@@ -56,6 +62,7 @@ export function Preferences({
                   monitoring: "Maintain folders in the background",
                   personalization: "Remember my explicit corrections",
                   trash_proposals: "Offer duplicate cleanup",
+                  review_notifications: "Notify me when files need attention",
                 }[key]
               }
             </b>
@@ -67,6 +74,8 @@ export function Preferences({
                   personalization: "Your learning history stays on this Mac",
                   trash_proposals:
                     "Moving anything to Trash needs a separate confirmation",
+                  review_notifications:
+                    "Optional macOS alerts with no filenames or contents in the notification",
                 }[key]
               }
             </small>

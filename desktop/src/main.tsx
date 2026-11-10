@@ -22,6 +22,7 @@ const initial: Snapshot = {
     monitoring: true,
     personalization: true,
     trash_proposals: true,
+    review_notifications: false,
     revision: 0,
   },
   preferences: { reuse_existing: true },
@@ -49,6 +50,11 @@ function App() {
   const native = "__TAURI_INTERNALS__" in window;
   const refreshSequence = useRef(0);
   const [startup, setStartup] = useState(true);
+  const [collectionSeed, setCollectionSeed] = useState<{
+    rootId: number;
+    source: string;
+    title: string;
+  } | null>(null);
   const [state, setState] = useState(initial),
     [loaded, setLoaded] = useState(false),
     [page, setPage] = useState<Page>("overview"),
@@ -120,6 +126,11 @@ function App() {
   ).length;
   const protectedCount = state.inventories.reduce((n, i) => n + i.protected, 0);
   async function update(patch: Partial<Settings>) {
+    if (
+      patch.review_notifications === true &&
+      !state.settings.review_notifications
+    )
+      await invoke("request_notifications");
     await invoke("update_settings", {
       settings: { ...state.settings, ...patch },
     });
@@ -472,6 +483,12 @@ function App() {
                     onTask={task}
                     onMessage={setMessage}
                     onChanged={refresh}
+                    onCollection={(source, title) => {
+                      if (root) {
+                        setCollectionSeed({ rootId: root.id, source, title });
+                        setPage("collections");
+                      }
+                    }}
                   />
                 ) : (
                   <div className="empty">
@@ -516,7 +533,17 @@ function App() {
                   </button>
                 </div>
                 <Collections
-                  key={root?.id || "none"}
+                  key={`${root?.id || "none"}:${collectionSeed?.rootId === root?.id ? collectionSeed?.source : ""}`}
+                  initialSources={
+                    collectionSeed?.rootId === root?.id
+                      ? [collectionSeed!.source]
+                      : []
+                  }
+                  initialTitle={
+                    collectionSeed?.rootId === root?.id
+                      ? collectionSeed!.title
+                      : ""
+                  }
                   root={root}
                   inventory={inventory}
                   busy={busy}
@@ -874,6 +901,19 @@ function App() {
                         }
                       >
                         Clear learning history
+                      </button>
+                      <button
+                        disabled={busy || !native}
+                        onClick={() =>
+                          task(async () => {
+                            await invoke("clear_kept");
+                            setMessage(
+                              "Keep here decisions cleared files will be reviewed on the next scan",
+                            );
+                          })
+                        }
+                      >
+                        Clear Keep here decisions
                       </button>
                       <button
                         disabled={busy || !native}

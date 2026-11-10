@@ -856,3 +856,51 @@ th {
     grid-template-columns: 1fr;
   }
 }
+.file-summary {
+  background: #132621;
+  border: 1px solid #426557;
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 20px;
+  overflow-wrap: anywhere;
+}
+.summary-method {
+  font-size: 10px;
+}
+.summary-excerpts {
+  padding-left: 20px;
+  font-size: 13px;
+  color: #d1e1d8;
+  line-height: 1.8;
+}
+.summary-excerpts li {
+  margin: 12px 0;
+}
+.related-folder {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  border-top: 1px solid #355044;
+  padding: 14px 0;
+}
+.related-folder > div {
+  min-width: 0;
+}
+.related-folder b {
+  font-size: 13px;
+}
+.file-summary h4 {
+  margin-top: 20px;
+}
+.file-summary .section-heading h4 {
+  margin: 0;
+}
+@media (max-width: 650px) {
+  .related-folder {
+    display: block;
+  }
+  .related-folder button {
+    margin-top: 10px;
+  }
+}

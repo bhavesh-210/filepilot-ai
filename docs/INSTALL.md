@@ -77,3 +77,18 @@ To test unwanted file cleanup select a disposable file in Collections
 Select Move selected to Trash and cancel the native confirmation first
 Verify the file remains in place
 Then confirm a separate test Trash action and restore it with Activity Undo
+
+## Test recursive summaries
+
+Use the newer FilePilot Deep Test pack and authorize its FilePilot Deep Test folder
+Ordinary nested documents should enter review when unknown or potentially misplaced
+Detected source projects must remain excluded
+Open a suspected file card and select Summarise instead of opening the document manually
+Read the partial sample label and quoted content then choose Keep here a displayed related folder or Create a titled collection
+Existing related folders are suggestions rather than authorization to move automatically
+Use Activity Undo after each test move
+Keep here should survive a refresh for an unchanged file
+Changing a disposable file may make it need review again
+Preferences can clear Keep here decisions
+Optionally request review notifications and check the actual macOS system permission and delivery
+Image and unsupported formats must report the limitation rather than fabricating a summary

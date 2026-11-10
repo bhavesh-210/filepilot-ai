@@ -19,6 +19,14 @@ The implementation does not autonomously infer which files are important or safe
 Group moves use per file journaling and can stop with partial completion when an external change is detected
 Cross root imports permanent deletion and real Mac acceptance remain outside this iteration
 
+## Recursive analysis and sampled summaries
+
+Ordinary subfolders are now analysed recursively while manifest projects common source layouts and protected paths are skipped
+Review includes a local extractive content overview persistent Keep here related existing folder moves and a shortcut to a preselected titled collection
+Text and PDF summaries are bounded samples and unsupported formats are reported honestly
+No large language model OCR general Office parser or claim of full semantic understanding is included
+Optional local notification code is compiled and system delivery remains a real Mac acceptance gate
+
 ## Implemented foundations
 
 - [x] Read only Python scanner report and classification rules

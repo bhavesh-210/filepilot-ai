@@ -57,8 +57,10 @@ Moves are limited to regular single link files at most 64 MiB
 The planner inventories safe directories before choosing destinations
 It can reuse exact named category folders or unambiguous aliases such as College Work and Photos
 Multiple equally suitable existing destinations require review
-Existing collections are inventoried without extracting or rearranging their files
-Only loose files at the selected root or directly inside Desktop Downloads Documents and Inbox are proposed
+Ordinary nested files are analysed recursively
+Known files already matching a meaningful ancestor folder can stay without a proposal
+Unknown or potentially misfiled nested files enter the review inbox
+Nested relocation suggestions never gain automatic permission just from filename rules
 This is a conservative folder name heuristic rather than a semantic understanding of every folder
 Full autonomy may create a missing canonical category folder during ongoing maintenance after first setup
 Smart and Limited modes do not create new folders in the background
@@ -212,3 +214,33 @@ Cancelling stops the remaining requests
 Use Activity to undo confirmed Trash actions
 Permanent deletion and importing from outside the selected authorized root are not implemented
 The user can grant additional folders separately
+
+## Summaries and review decisions
+
+Summarise reads supported content locally and returns a short extractive overview of sampled passages
+It does not use a generative model or claim full semantic comprehension
+UTF8 text Markdown CSV and log files are limited to sixty four KiB input and two thousand returned characters
+PDFs use the existing isolated trusted helper with a two MiB input limit five pages and two thousand characters
+PDF input is snapshot checked again after parsing
+Truncation unavailable text and unsupported formats are explicit
+There is no OCR image understanding archive extraction or Office document parser in this iteration
+
+Related folder recommendations combine content keyword topics existing folder names filename overlap and at most eight neighbouring text samples
+Each neighbour is at most sixty four KiB and two thousand characters
+All neighbours remain inside the same authorized root and pass the existing protected project link and placeholder checks
+Suggestions are heuristics and never grant automatic move permission
+A displayed folder can be selected explicitly for a guarded reversible move
+Create a titled collection opens Collections with the source and suggested title already filled in
+Keep here saves the source identity locally suppressing unchanged future proposals until the file changes or the user clears those decisions
+Keep here is separate from personalization and clearing learning does not silently discard that explicit choice
+
+## Review notifications
+
+Review notifications are off by default and require an explicit preference and system permission request
+They use the local UserNotifications framework rather than a remote push service
+Messages contain counts rather than filenames paths or document contents
+Notifications are batched with a fifteen minute cooldown and a newly pending item check
+macOS permission and installed app identity determine actual delivery
+Real permission prompts click activation delivery and sleep wake acceptance remain unchecked until tested on a Mac
+
+https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/requestauthorization(options:completionhandler:)

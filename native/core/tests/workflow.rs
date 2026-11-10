@@ -78,9 +78,23 @@ fn existing_collections_are_inventoried_and_not_flattened() {
     let p = e.prepare_setup(id).unwrap();
     assert_eq!(p.inventory.files, 2);
     assert!(p.inventory.folders.contains(&"College/AP/Prisma".into()));
-    assert_eq!(p.inventory.proposals.len(), 1);
+    assert_eq!(p.inventory.proposals.len(), 2);
+    assert!(
+        !p.inventory
+            .proposals
+            .iter()
+            .find(|p| p.source.ends_with("invoice.txt"))
+            .unwrap()
+            .certain
+    );
     assert_eq!(
-        p.inventory.proposals[0].destination.as_deref(),
+        p.inventory
+            .proposals
+            .iter()
+            .find(|p| p.source == "lecture.txt")
+            .unwrap()
+            .destination
+            .as_deref(),
         Some("College/lecture.txt")
     );
     assert!(p.create_folders.is_empty());

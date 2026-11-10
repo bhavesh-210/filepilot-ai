@@ -1,4 +1,6 @@
 //! Trusted native core with no network client and no arbitrary command execution
+mod summaries;
+pub use summaries::FileSummary;
 mod collections;
 pub use collections::{CollectionPlan, CollectionResult};
 pub mod fs;
@@ -46,6 +48,8 @@ pub struct Settings {
     pub revision: u64,
     #[serde(default = "enabled")]
     pub trash_proposals: bool,
+    #[serde(default)]
+    pub review_notifications: bool,
 }
 fn enabled() -> bool {
     true
@@ -59,6 +63,7 @@ impl Default for Settings {
             personalization: true,
             revision: 0,
             trash_proposals: true,
+            review_notifications: false,
         }
     }
 }
@@ -119,6 +124,7 @@ pub struct Engine {
 impl Engine {
     pub fn new(db: Connection) -> Result<Self> {
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA secure_delete=ON;
+        CREATE TABLE IF NOT EXISTS kept(root_id INTEGER NOT NULL,source TEXT NOT NULL,identity TEXT NOT NULL,PRIMARY KEY(root_id,source));
         CREATE TABLE IF NOT EXISTS roots(id INTEGER PRIMARY KEY AUTOINCREMENT,path TEXT NOT NULL UNIQUE,bookmark TEXT NOT NULL,reviewed INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS root_nodes(root_id INTEGER PRIMARY KEY,device TEXT NOT NULL,inode TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY,value TEXT NOT NULL);
@@ -251,6 +257,9 @@ impl Engine {
                 .execute("UPDATE roots SET reviewed=0 WHERE id=?", [id])
                 .map_err(message)?;
             root.initial_reviewed = false;
+            self.db
+                .execute("DELETE FROM kept WHERE root_id=?", [id])
+                .map_err(message)?;
             self.db
                 .execute("DELETE FROM examples WHERE root_id=?", [id])
                 .map_err(message)?;
@@ -513,10 +522,10 @@ impl Engine {
         inventory.items.sort();
         files.sort_by(|a, b| a.0.cmp(&b.0));
         for (source, name, relative, snapshot) in files {
-            // Existing collections are inventoried but never flattened
-            if !relative.is_empty() && !workflow::inbox(&relative) {
+            if self.is_kept(id, &source, &snapshot)? {
                 continue;
             }
+            let nested = !relative.is_empty() && !workflow::inbox(&relative);
             let mut category = classify(&name);
             let mut example_used = false;
             let mut target_folder = category.clone();
@@ -558,6 +567,15 @@ impl Engine {
                     structure_review = candidates.len() > 1;
                 }
             }
+            // Analyse every safe nested file without automatically flattening collections
+            if nested
+                && !preference_used
+                && !example_used
+                && category != "Unknown"
+                && summaries::folder_fits(&relative, &category)
+            {
+                continue;
+            }
             let proposed_name = if self.settings.rename {
                 normalized_name(&name)
             } else {
@@ -571,7 +589,9 @@ impl Engine {
             if destination.as_deref() == Some(&source) {
                 continue;
             }
-            let mut reason = if destination.is_none() {
+            let mut reason = if nested {
+                "Nested file needs content review before changing its collection"
+            } else if destination.is_none() {
                 "Needs classification review"
             } else {
                 if example_used {
@@ -629,7 +649,7 @@ impl Engine {
                 blocked,
                 revision: self.settings.revision,
                 rename: proposed_name != name,
-                certain: category != "Unknown" && !example_used && !structure_review,
+                certain: category != "Unknown" && !example_used && !structure_review && !nested,
                 manual_destination: false,
                 snapshot,
             };

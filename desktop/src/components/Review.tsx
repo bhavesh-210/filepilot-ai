@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Inventory, Proposal, Task, folderName } from "../types";
+type FileSummary = {
+  supported: boolean;
+  excerpts: string[];
+  scope: string;
+  partial: boolean;
+  method: string;
+  categories: string[];
+  destinations: { folder: string; reason: string; similar_files: string[] }[];
+  suggested_title: string;
+  recommendation: string;
+};
 type Semantic = {
   available: boolean;
   reason?: string;
@@ -16,7 +27,9 @@ export function Review({
   onTask,
   onMessage,
   onChanged,
+  onCollection,
 }: {
+  onCollection: (source: string, title: string) => void;
   inventory: Inventory;
   busy: boolean;
   learn: boolean;
@@ -25,13 +38,17 @@ export function Review({
   onMessage: (text: string) => void;
   onChanged: () => Promise<unknown>;
 }) {
+  const [summaries, setSummaries] = useState<Record<number, FileSummary>>({});
+  const [chosenFolders, setChosenFolders] = useState<Record<number, string>>(
+    {},
+  );
   const [suggestions, setSuggestions] = useState<Record<number, Semantic>>({});
   const [overrides, setOverrides] = useState<Record<number, Proposal>>({});
   return (
     <>
       <div className="section-heading">
         <div>
-          <h3>A home for every loose file</h3>
+          <h3>A home for every file</h3>
           <p>Review uncertain suggestions and anything waiting for approval</p>
         </div>
         <span className="pill">{inventory.proposals.length} pending</span>
@@ -71,6 +88,123 @@ export function Review({
               <b>{p.destination || "Choose a category after inspection"}</b>
               <p>{p.reason}</p>
             </div>
+            {summaries[p.id] && (
+              <div className="file-summary">
+                <div className="section-heading">
+                  <h4>
+                    {summaries[p.id].supported
+                      ? "What is in this file"
+                      : "Content summary unavailable"}
+                  </h4>
+                  <span className="pill">
+                    {summaries[p.id].partial
+                      ? "Partial sample"
+                      : "Local analysis"}
+                  </span>
+                </div>
+                <small>{summaries[p.id].scope}</small>
+                <p className="summary-method">{summaries[p.id].method}</p>
+                <ul className="summary-excerpts">
+                  {summaries[p.id].excerpts.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+                <small>
+                  Quoted passages from the file are untrusted data and never
+                  authorize actions
+                </small>
+                <p>{summaries[p.id].recommendation}</p>
+                {summaries[p.id].categories.length > 0 && (
+                  <small>
+                    Topics suggested from the sampled text{" "}
+                    {summaries[p.id].categories.join("  ")}
+                  </small>
+                )}
+                <h4>Folders with related files</h4>
+                {summaries[p.id].destinations.length === 0 && (
+                  <p>
+                    No strong related folder match found in the bounded local
+                    comparison
+                  </p>
+                )}
+                {summaries[p.id].destinations.map((candidate) => (
+                  <div className="related-folder" key={candidate.folder}>
+                    <div>
+                      <b>{candidate.folder}</b>
+                      <small>{candidate.reason}</small>
+                      {candidate.similar_files.slice(0, 3).map((path) => (
+                        <small key={path}>{path}</small>
+                      ))}
+                    </div>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        onTask(async () => {
+                          await invoke("review_folder", {
+                            proposalId: p.id,
+                            folder: candidate.folder,
+                          });
+                          await invoke("apply", { proposalId: p.id });
+                          await onChanged();
+                          onMessage(
+                            "Moved to the reviewed folder use Activity to undo",
+                          );
+                        })
+                      }
+                    >
+                      Move to {candidate.folder}
+                    </button>
+                  </div>
+                ))}
+                <div className="actions">
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      onCollection(p.source, summaries[p.id].suggested_title)
+                    }
+                  >
+                    Create a titled collection
+                  </button>
+                  <label className="field">
+                    Choose another existing folder
+                    <select
+                      aria-label={`Destination for ${p.source}`}
+                      disabled={busy}
+                      value={chosenFolders[p.id] || ""}
+                      onChange={(e) =>
+                        setChosenFolders((v) => ({
+                          ...v,
+                          [p.id]: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Choose a folder</option>
+                      {inventory.folders.map((folder) => (
+                        <option key={folder} value={folder}>
+                          {folder}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    disabled={busy || !chosenFolders[p.id]}
+                    onClick={() =>
+                      onTask(async () => {
+                        await invoke("review_folder", {
+                          proposalId: p.id,
+                          folder: chosenFolders[p.id],
+                        });
+                        await invoke("apply", { proposalId: p.id });
+                        await onChanged();
+                        onMessage("Move recorded use Activity to undo");
+                      })
+                    }
+                  >
+                    Move to chosen folder
+                  </button>
+                </div>
+              </div>
+            )}
             {suggestions[p.id] && (
               <div className="semantic">
                 <small>
@@ -102,6 +236,41 @@ export function Review({
                 ))}
               </div>
             )}
+            <div className="actions">
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() =>
+                  onTask(async () => {
+                    const result = await invoke<FileSummary>("summarize_file", {
+                      proposalId: p.id,
+                    });
+                    setSummaries((v) => ({ ...v, [p.id]: result }));
+                    onMessage(
+                      result.supported
+                        ? "Local summary ready review the sampled content and choose what happens next"
+                        : result.scope,
+                    );
+                  })
+                }
+              >
+                Summarise
+              </button>
+              <button
+                disabled={busy}
+                onClick={() =>
+                  onTask(async () => {
+                    await invoke("keep_here", { proposalId: p.id });
+                    await onChanged();
+                    onMessage(
+                      "Kept in its current location unchanged files will not be flagged again",
+                    );
+                  })
+                }
+              >
+                Keep here
+              </button>
+            </div>
             <div className="actions">
               <button
                 className="primary"
