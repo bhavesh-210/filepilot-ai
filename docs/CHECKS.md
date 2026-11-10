@@ -110,3 +110,10 @@ No automated test accepts a real system permission dialog or uses a personal doc
 
 The packaged PDF helper is tested again from inside the built app bundle to catch missing resources and executable permission errors
 Remembering a destination is tested separately from approving a move
+
+## Dependency checks
+
+The dependency workflow checks both Rust lockfiles and the frontend lockfile
+The bundled SQLite version has a security regression test
+All platform informational advisories remain visible in the audit reports
+See DEPENDENCY_AUDIT for the current results and checked Mac target scope

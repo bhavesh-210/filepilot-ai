@@ -27,6 +27,8 @@ Implementation does not mean production acceptance
 The native alpha needs the release gates below
 See NATIVE_APP for exact limits and residual risks
 
+- [x] Patched bundled SQLite and automated dependency advisory checks
+
 ## Release gates still open
 
 - [ ] Test system permissions and stale bookmark renewal on a real user Mac

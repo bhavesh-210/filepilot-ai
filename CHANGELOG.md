@@ -1,3 +1,10 @@
+# Bundled SQLite security update
+
+Updated the core and desktop database dependency to the patched SQLite release
+Added a runtime version regression check
+Recorded dependency audit results and retained platform specific informational findings
+Added automated Rust and frontend advisory checks
+
 # Stable background previews
 
 Preserved unchanged preview actions during background reconciliation

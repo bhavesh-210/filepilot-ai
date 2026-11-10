@@ -1,0 +1,60 @@
+name: dependency checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/**/Cargo.toml'
+      - 'native/**/Cargo.lock'
+      - 'desktop/src-tauri/Cargo.toml'
+      - 'desktop/src-tauri/Cargo.lock'
+      - 'desktop/package.json'
+      - 'desktop/package-lock.json'
+      - '.github/workflows/dependency-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dependencies-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  rust:
+    name: Rust advisory checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Install the tested audit tool
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo +1.99.1 install cargo-audit --version 0.23.0 --locked --quiet
+      - name: Check both dependency lockfiles
+        run: |
+          mkdir -p reports
+          filepilot_audit_failed=0
+          cargo-audit audit --file native/core/Cargo.lock --json > reports/core-audit.json || filepilot_audit_failed=1
+          cargo-audit audit --file desktop/src-tauri/Cargo.lock --no-fetch --json > reports/desktop-audit.json || filepilot_audit_failed=1
+          exit "$filepilot_audit_failed"
+      - name: Save advisory reports including informational warnings
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: rust-dependency-audits
+          path: reports/*-audit.json
+          if-no-files-found: warn
+          retention-days: 7
+  frontend:
+    name: Frontend advisory checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Install locked dependencies without lifecycle scripts
+        working-directory: desktop
+        run: npm ci --ignore-scripts
+      - name: Check frontend dependencies
+        working-directory: desktop
+        run: npm audit

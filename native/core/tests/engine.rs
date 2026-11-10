@@ -633,3 +633,10 @@ fn changed_sources_expire_even_when_background_preserves_a_preview() {
         "changed"
     );
 }
+#[test]
+fn bundled_sqlite_includes_the_required_wal_security_fix() {
+    assert!(
+        rusqlite::version_number() >= 3_054_000,
+        "Bundled SQLite must include the page cache security fix"
+    );
+}

@@ -1,0 +1,51 @@
+{
+  "schema_version": "0.1.0",
+  "tool": "cargo-audit",
+  "tool_version": "0.23.0",
+  "advisory_database_commit": "28d73fc95e5972af3403225a217def57dcaba3c4",
+  "scans": {
+    "core": {
+      "lockfile": "native/core/Cargo.lock",
+      "lockfile_sha256": "af56d576adc6fd6043e5ba08306674e50def289150a6ef6f3a1d1d6ea9cdb53e",
+      "known_vulnerabilities": 0,
+      "informational_advisories": []
+    },
+    "desktop": {
+      "lockfile": "desktop/src-tauri/Cargo.lock",
+      "lockfile_sha256": "134410dfd56e0193a09de5a5695880ba36dcc153fbe768d5ecf0a4adbd673e5d",
+      "known_vulnerabilities": 0,
+      "informational_advisories": [
+        {
+          "kind": "unmaintained",
+          "advisory": "RUSTSEC-2024-0370",
+          "package": "proc-macro-error",
+          "version": "1.0.4",
+          "present_in_checked_macos_graphs": []
+        },
+        {
+          "kind": "unsound",
+          "advisory": "RUSTSEC-2024-0429",
+          "package": "glib",
+          "version": "0.18.5",
+          "present_in_checked_macos_graphs": []
+        }
+      ]
+    },
+    "frontend": {
+      "tool": "npm audit",
+      "lockfile": "desktop/package-lock.json",
+      "lockfile_sha256": "e33defafcef785c81f1a919f5a565096a76cdc5f900eff5161fbf2afeb828aee",
+      "known_vulnerabilities": 0
+    }
+  },
+  "fixed_advisory": "RUSTSEC-2026-0459",
+  "graph_checked_targets": [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin"
+  ],
+  "limitations": [
+    "Known advisory scan only",
+    "Not a security certification",
+    "Does not audit macOS frameworks or runtime permission behaviour"
+  ]
+}
