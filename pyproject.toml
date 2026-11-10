@@ -16,6 +16,7 @@ research = ["scikit-learn==1.8.0"]
 [project.scripts]
 filepilot = "filepilot.cli:main"
 filepilot-check = "filepilot.check:main"
+filepilot-plan = "filepilot.planner:main"
 filepilot-inspect = "filepilot.content:main"
 
 [tool.setuptools.packages.find]

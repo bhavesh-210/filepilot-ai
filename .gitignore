@@ -32,3 +32,9 @@ htmlcov/
 *.onnx
 *.mlmodel
 *.mlpackage/
+
+# Local preference stores
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
