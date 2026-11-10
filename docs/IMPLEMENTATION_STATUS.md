@@ -11,6 +11,14 @@ This is conservative metadata planning and not a validated model that can redesi
 Automatic duplicate removal and permanent deletion are not implemented
 Real Mac permission and lifecycle acceptance and production signing remain open
 
+## Important file collections
+
+The UI now supports explicit file selection editable filename based folder title suggestions new collection previews and moves into existing folders
+The user can select unwanted ordinary files for separately confirmed Trash
+The implementation does not autonomously infer which files are important or safe to discard
+Group moves use per file journaling and can stop with partial completion when an external change is detected
+Cross root imports permanent deletion and real Mac acceptance remain outside this iteration
+
 ## Implemented foundations
 
 - [x] Read only Python scanner report and classification rules

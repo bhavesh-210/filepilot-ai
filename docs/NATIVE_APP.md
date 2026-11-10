@@ -187,3 +187,28 @@ https://developer.apple.com/documentation/pdfkit/pdfdocument
 https://developer.apple.com/documentation/foundation/filemanager/searchpathdirectory
 
 See SETUP_WORKFLOW for the one time setup contract and current structure planning limits
+
+## Important collections and unwanted files
+
+Collections lists ordinary files in the latest safe inventory of an approved folder
+The user explicitly selects what is important or unwanted
+Selected files can be added to an existing relative folder or to a new named folder at the authorized root
+An empty title receives a filename based title suggestion during preview
+The user can edit that title before generating another preview
+Creating and filling a collection requires its own confirmation
+No file content is read to infer importance
+No file is marked unwanted automatically
+
+A collection supports at most one hundred files and two hundred fifty six MiB per operation
+The existing per file sixty four MiB stability project path link and collision restrictions still apply
+The whole selected group is preflighted before the first change
+External races or permission changes can still interrupt a group after some moves
+Each completed move has its own journal record and Undo
+The result reports completed moves and any error rather than claiming an atomic transaction
+An empty directory can remain after Undo because automatic directory deletion is not authorized
+
+Move selected to Trash asks for separate native confirmation for each file
+Cancelling stops the remaining requests
+Use Activity to undo confirmed Trash actions
+Permanent deletion and importing from outside the selected authorized root are not implemented
+The user can grant additional folders separately

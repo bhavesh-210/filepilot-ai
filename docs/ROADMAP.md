@@ -116,3 +116,14 @@ The production release gates remain in IMPLEMENTATION_STATUS
 - [ ] Complete real Mac folder permission startup and sleep wake acceptance
 - [ ] Evaluate broader semantic structure recommendations with reviewed data
 - [ ] Sign notarize and independently audit a production release
+
+## Important collections
+
+- [x] Select safe files from approved folders
+- [x] Add selected files to an existing folder
+- [x] Preview a new named collection for important files
+- [x] Suggest an editable title using filenames
+- [x] Confirm unwanted files through system Trash with Undo
+- [x] Preflight grouped moves and report partial completion honestly
+- [x] Test collections with synthetic data
+- [ ] Validate the complete collection and Trash flow on a real Mac

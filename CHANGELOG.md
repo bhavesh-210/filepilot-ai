@@ -1,3 +1,13 @@
+# Important collections and selected file cleanup
+
+Added a Collections screen for selecting ordinary files inside approved folders
+Added moves into existing folders and previewed creation of named important collections
+Suggested editable titles from selected filenames without claiming to infer importance
+Kept original filenames and checked the whole group before starting
+Recorded each move separately with Undo and reported interrupted group results
+Added selected unwanted file actions using separate system Trash confirmation
+Added tests for collections title edits collisions protection stale plans cancellation and partial recovery
+
 # One time setup and calmer daily use
 
 Replaced the tool dashboard with setup overview review folders activity and preferences

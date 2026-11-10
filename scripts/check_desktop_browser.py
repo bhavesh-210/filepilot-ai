@@ -12,7 +12,7 @@ window.testCalls=[];
 window.testSettings={mode:'full',rename:true,monitoring:true,personalization:true,trash_proposals:true,revision:0};
 window.testHistory=[];
 window.testFolder={id:1,path:'/synthetic/demo',active:true,initial_reviewed:!window.testSetup};
-window.inventory=()=>({root_id:1,files:1,folders:['College'],protected:1,errors:[],proposals:window.testExpired||window.testHistory.some(o=>o.state==='applied')?[]:[{id:7,root_id:1,source:window.syntheticSource||'lecture.txt',destination:'College/lecture.txt',category:'Education',reason:'Reuse an existing category folder',blocked:false,rename:false,certain:true}]});
+window.inventory=()=>({root_id:1,files:1,folders:['College'],items:['lecture.txt'],protected:1,errors:[],proposals:window.testExpired||window.testHistory.some(o=>o.state==='applied')?[]:[{id:7,root_id:1,source:window.syntheticSource||'lecture.txt',destination:'College/lecture.txt',category:'Education',reason:'Reuse an existing category folder',blocked:false,rename:false,certain:true}]});
 window.__TAURI_INTERNALS__={
  transformCallback:(handler)=>{window.testTauriEvent=handler;return 1;},unregisterCallback:()=>{},
  invoke:async(command,args)=>{
@@ -27,6 +27,10 @@ window.__TAURI_INTERNALS__={
   if(command==='scan'){window.testExpired=false;return window.inventory();}
   if(command==='semantic_suggestions')return {available:true,content_used:true,model:'Synthetic model',ranking:[{category:'Education',score:0.8}]};
   if(command==='review_destination')return {...window.inventory().proposals[0],certain:false,reason:'User selected destination still requires explicit move approval'};
+  if(command==='collection_title')return 'Important study files';
+  if(command==='plan_collection'){window.collectionPlan={token:99,root_id:1,folder:args.folder,create_folder:args.createFolder,proposals:[{id:9,source:'lecture.txt',destination:args.folder+'/lecture.txt'}]};return window.collectionPlan;}
+  if(command==='cancel_collection'){window.collectionPlan=null;return null;}
+  if(command==='apply_collection'){window.testHistory=[{id:2,root_id:1,source:'lecture.txt',destination:window.collectionPlan.folder+'/lecture.txt',state:'applied',kind:'move'}];return {operations:[2],errors:[]};}
   if(command==='trash_file')return null;
   if(command==='apply'){window.testHistory=[{id:1,root_id:1,source:'lecture.txt',destination:'College/lecture.txt',state:'applied',kind:'move'}];return 1;}
   if(command==='undo'){window.testHistory[0].state='undone';return null;}
@@ -141,10 +145,47 @@ class DesktopBrowserTests(unittest.TestCase):
         self.review(page)
         self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'),390)
         self.assertFalse(self.errors,self.errors)
+    def test_named_collection_is_previewed_before_moving(self):
+        page=self.open();self.nav(page,'Collections')
+        page.get_by_label('Select lecture.txt',exact=True).check()
+        page.get_by_role('button',name='Preview collection',exact=True).click()
+        page.get_by_role('button',name='Confirm collection',exact=True).wait_for()
+        self.assertNotIn('apply_collection',page.evaluate('window.testCalls'))
+        self.assertEqual(page.get_by_label('Collection folder title').input_value(),'Important study files')
+        page.get_by_role('button',name='Confirm collection',exact=True).click()
+        page.get_by_text('1 files added to Important study files use Activity to undo each move',exact=True).wait_for()
+        self.nav(page,'Activity');self.assertTrue(page.get_by_role('button',name='Undo',exact=True).is_enabled())
+        self.assertFalse(self.errors,self.errors)
+    def test_existing_folder_collection_preserves_the_destination(self):
+        page=self.open();self.nav(page,'Collections');page.get_by_label('Select lecture.txt',exact=True).check()
+        page.get_by_label('Collection destination type').select_option('existing')
+        page.get_by_label('Existing collection folder').select_option('College')
+        page.get_by_role('button',name='Preview collection',exact=True).click()
+        page.get_by_role('button',name='Confirm collection',exact=True).wait_for()
+        self.assertFalse(page.evaluate('window.collectionPlan.create_folder'))
+        self.assertEqual(page.evaluate('window.collectionPlan.folder'),'College')
+        self.assertNotIn('apply_collection',page.evaluate('window.testCalls'))
+    def test_editing_a_collection_requires_a_new_preview(self):
+        page=self.open();self.nav(page,'Collections');page.get_by_label('Select lecture.txt',exact=True).check()
+        page.get_by_label('Collection folder title').fill('My exam essentials')
+        page.get_by_role('button',name='Preview collection',exact=True).click()
+        page.get_by_role('button',name='Edit selection',exact=True).click()
+        page.get_by_role('button',name='Preview collection',exact=True).wait_for(state='visible')
+        self.assertEqual(page.get_by_role('button',name='Confirm collection').count(),0)
+        self.assertIn('cancel_collection',page.evaluate('window.testCalls'))
+        self.assertNotIn('apply_collection',page.evaluate('window.testCalls'))
+    def test_selected_unwanted_file_still_needs_native_trash_confirmation(self):
+        page=self.open();self.nav(page,'Collections');page.get_by_label('Select lecture.txt',exact=True).check()
+        page.get_by_role('button',name='Move selected to Trash',exact=True).click()
+        page.get_by_text('Trash cancelled no files moved',exact=True).wait_for()
+        self.assertTrue(page.get_by_label('Select lecture.txt',exact=True).is_checked())
+        self.assertNotIn('apply_collection',page.evaluate('window.testCalls'))
+        self.assertEqual(page.evaluate('window.testHistory.length'),0)
     def test_visual_snapshots(self):
         directory=ROOT/'desktop/test-results';directory.mkdir(exist_ok=True)
         page=self.open();page.screenshot(path=str(directory/'overview.png'),full_page=True)
         self.review(page);page.screenshot(path=str(directory/'review.png'),full_page=True)
+        self.nav(page,'Collections');page.screenshot(path=str(directory/'collections.png'),full_page=True)
         page=self.open(setup=True);page.screenshot(path=str(directory/'setup.png'),full_page=True)
         self.assertFalse(self.errors,self.errors)
 if __name__=='__main__':unittest.main(verbosity=2)

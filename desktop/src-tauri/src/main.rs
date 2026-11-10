@@ -130,6 +130,55 @@ async fn finish_setup(
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+fn collection_title(
+    root_id: i64,
+    sources: Vec<String>,
+    state: tauri::State<Shared>,
+) -> Result<String, String> {
+    state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .collection_title(root_id, &sources)
+}
+#[tauri::command]
+fn plan_collection(
+    root_id: i64,
+    sources: Vec<String>,
+    folder: String,
+    create_folder: bool,
+    state: tauri::State<Shared>,
+) -> Result<filepilot_core::CollectionPlan, String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.permission_epoch = epoch;
+    engine.plan_collection(root_id, sources, folder, create_folder)
+}
+#[tauri::command]
+fn cancel_collection(root_id: i64, token: u64, state: tauri::State<Shared>) -> Result<(), String> {
+    state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .cancel_collection(root_id, token)
+}
+#[tauri::command]
+async fn apply_collection(
+    root_id: i64,
+    token: u64,
+    state: tauri::State<'_, Shared>,
+) -> Result<filepilot_core::CollectionResult, String> {
+    let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
+        let expected = engine.permission_epoch;
+        engine.apply_collection(root_id, token, || epoch.load(Ordering::SeqCst) == expected)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 async fn scan(
     root_id: i64,
     state: tauri::State<'_, Shared>,
@@ -484,6 +533,10 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
 fn main() {
     let application = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            collection_title,
+            plan_collection,
+            cancel_collection,
+            apply_collection,
             choose_folders,
             update_preferences,
             prepare_setup,

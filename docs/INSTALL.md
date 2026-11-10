@@ -62,3 +62,18 @@ The Mac acceptance checklist records the remaining system tests
 Do not assume that a compiled app or a green browser mock test proves permission sleep wake or cloud provider behaviour
 
 See MAC_ACCEPTANCE and IMPLEMENTATION_STATUS before using personal folders
+
+## Test collections
+
+Open Collections after completing first cleanup setup
+Choose the approved test folder and select disposable files
+Choose an existing folder or leave the new folder title empty for a suggestion
+Select Preview collection and review every source and new location
+Use Edit selection to change the title or destination
+Confirm the collection and verify the new location in Finder
+Use Activity to undo individual moves
+
+To test unwanted file cleanup select a disposable file in Collections
+Select Move selected to Trash and cancel the native confirmation first
+Verify the file remains in place
+Then confirm a separate test Trash action and restore it with Activity Undo

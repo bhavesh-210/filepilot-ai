@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Setup } from "./components/Setup";
 import { Preferences } from "./components/Preferences";
+import { Collections } from "./components/Collections";
 import { Review } from "./components/Review";
 import {
   Inventory,
@@ -29,10 +30,17 @@ const initial: Snapshot = {
   history: [],
   notice: "",
 };
-type Page = "overview" | "review" | "folders" | "activity" | "preferences";
+type Page =
+  | "overview"
+  | "review"
+  | "collections"
+  | "folders"
+  | "activity"
+  | "preferences";
 const pages: { id: Page; label: string; symbol: string }[] = [
   { id: "overview", label: "Overview", symbol: "◫" },
   { id: "review", label: "Review inbox", symbol: "▤" },
+  { id: "collections", label: "Collections", symbol: "▱" },
   { id: "folders", label: "Your folders", symbol: "▱" },
   { id: "activity", label: "Activity", symbol: "↶" },
   { id: "preferences", label: "Preferences", symbol: "☷" },
@@ -473,6 +481,47 @@ function App() {
                   </div>
                 )}
               </section>
+            )}
+            {page === "collections" && (
+              <>
+                <div className="toolbar">
+                  <label>
+                    Folder{" "}
+                    <select
+                      aria-label="Collection source folder"
+                      value={root?.id || ""}
+                      disabled={busy}
+                      onChange={(e) => setSelected(Number(e.target.value))}
+                    >
+                      {active.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {folderName(r.path)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    disabled={busy || !native || !root?.active}
+                    onClick={() => task(rescan)}
+                  >
+                    Refresh files
+                  </button>
+                </div>
+                <Collections
+                  key={root?.id || "none"}
+                  root={root}
+                  inventory={inventory}
+                  busy={busy}
+                  native={native}
+                  trash={state.settings.trash_proposals}
+                  onTask={task}
+                  onMessage={setMessage}
+                  onChanged={async () => {
+                    await rescan();
+                    await refresh();
+                  }}
+                />
+              </>
             )}
             {page === "folders" && (
               <>

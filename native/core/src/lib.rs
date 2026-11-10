@@ -1,4 +1,6 @@
 //! Trusted native core with no network client and no arbitrary command execution
+mod collections;
+pub use collections::{CollectionPlan, CollectionResult};
 pub mod fs;
 pub mod pdf_worker;
 mod personalization;
@@ -87,6 +89,7 @@ pub struct Inventory {
     pub root_id: i64,
     pub files: usize,
     pub folders: Vec<String>,
+    pub items: Vec<String>,
     pub protected: usize,
     pub errors: Vec<String>,
     pub proposals: Vec<Proposal>,
@@ -111,6 +114,7 @@ pub struct Engine {
     authorization_epoch: u64,
     inventories: HashMap<i64, Inventory>,
     setup_previews: HashMap<i64, SetupPreview>,
+    collections: HashMap<i64, CollectionPlan>,
 }
 impl Engine {
     pub fn new(db: Connection) -> Result<Self> {
@@ -167,6 +171,7 @@ impl Engine {
             authorization_epoch: 0,
             inventories: HashMap::new(),
             setup_previews: HashMap::new(),
+            collections: HashMap::new(),
         })
     }
     fn parent(&self, id: i64, relative: &str) -> std::io::Result<(std::fs::File, String)> {
@@ -339,6 +344,13 @@ impl Engine {
         if !CATEGORIES.contains(&category) {
             return Err("Invalid category".into());
         }
+        self.create_named_folder(id, category)
+    }
+    fn create_named_folder(&self, id: i64, category: &str) -> Result<()> {
+        let components = fs::parts(category).map_err(message)?;
+        if components.len() != 1 {
+            return Err("Choose a single folder title".into());
+        }
         let fd = self.opened_root(id)?;
         if fs::project(fd.as_raw_fd()) {
             return Err("Project protected".into());
@@ -433,6 +445,7 @@ impl Engine {
             root_id: id,
             files: 0,
             folders: Vec::new(),
+            items: Vec::new(),
             protected: 0,
             errors: Vec::new(),
             proposals: Vec::new(),
@@ -496,6 +509,8 @@ impl Engine {
         }
         directories.sort();
         inventory.folders = directories.clone();
+        inventory.items = files.iter().map(|f| f.0.clone()).collect();
+        inventory.items.sort();
         files.sort_by(|a, b| a.0.cmp(&b.0));
         for (source, name, relative, snapshot) in files {
             // Existing collections are inventoried but never flattened

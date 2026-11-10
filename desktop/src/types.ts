@@ -28,6 +28,7 @@ export type Inventory = {
   root_id: number;
   files: number;
   folders: string[];
+  items: string[];
   protected: number;
   errors: string[];
   proposals: Proposal[];
