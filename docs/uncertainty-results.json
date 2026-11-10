@@ -1,0 +1,65 @@
+{
+  "schema_version": "0.1.0",
+  "split": "validation",
+  "test_split_scored": false,
+  "scores_calibrated": false,
+  "production_threshold": null,
+  "limitation": "Repeated synthetic development evaluation with eight declared validation families",
+  "thresholds": [
+    {
+      "threshold": 0.0,
+      "examples": 16,
+      "suggestions": 16,
+      "coverage": 1.0,
+      "suggestion_accuracy": 0.875,
+      "wrong_suggestions": 2,
+      "review_count": 0,
+      "known_category_deferred": 0,
+      "unknown_category_suggested": 2
+    },
+    {
+      "threshold": 0.2,
+      "examples": 16,
+      "suggestions": 14,
+      "coverage": 0.875,
+      "suggestion_accuracy": 0.8571428571428571,
+      "wrong_suggestions": 2,
+      "review_count": 2,
+      "known_category_deferred": 2,
+      "unknown_category_suggested": 2
+    },
+    {
+      "threshold": 0.3,
+      "examples": 16,
+      "suggestions": 4,
+      "coverage": 0.25,
+      "suggestion_accuracy": 1.0,
+      "wrong_suggestions": 0,
+      "review_count": 12,
+      "known_category_deferred": 10,
+      "unknown_category_suggested": 0
+    },
+    {
+      "threshold": 0.4,
+      "examples": 16,
+      "suggestions": 2,
+      "coverage": 0.125,
+      "suggestion_accuracy": 1.0,
+      "wrong_suggestions": 0,
+      "review_count": 14,
+      "known_category_deferred": 12,
+      "unknown_category_suggested": 0
+    },
+    {
+      "threshold": 0.5,
+      "examples": 16,
+      "suggestions": 2,
+      "coverage": 0.125,
+      "suggestion_accuracy": 1.0,
+      "wrong_suggestions": 0,
+      "review_count": 14,
+      "known_category_deferred": 12,
+      "unknown_category_suggested": 0
+    }
+  ]
+}

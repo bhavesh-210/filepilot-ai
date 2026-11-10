@@ -1,5 +1,12 @@
 # Changelog
 
+## Measure uncertain predictions
+
+- Record coverage wrong suggestions and review counts
+- Keep unknown and tied predictions for review
+- Report no accuracy when every example is deferred
+- Leave the production threshold unset
+
 ## Compare the first local classifier
 
 - Add an optional TF IDF and Logistic Regression experiment
