@@ -32,6 +32,7 @@ window.__TAURI_INTERNALS__={
   if(command==='cancel_collection'){window.collectionPlan=null;return null;}
   if(command==='apply_collection'&&window.testCollectionFailure)return {operations:[],errors:['Interrupted change needs reconciliation']};
   if(command==='apply_collection'){window.testHistory=[{id:2,root_id:1,source:'lecture.txt',destination:window.collectionPlan.folder+'/lecture.txt',state:'applied',kind:'move'}];return {operations:[2],errors:[]};}
+  if(command==='trash_file'&&window.testTrashFailure){window.testHistory=[{id:3,root_id:1,source:'lecture.txt',destination:'Trash/lecture.txt',state:'needs_review',kind:'trash'}];throw 'Trash verification was interrupted';}
   if(command==='trash_file')return null;
   if(command==='apply'){window.testHistory=[{id:1,root_id:1,source:'lecture.txt',destination:'College/lecture.txt',state:'applied',kind:'move'}];return 1;}
   if(command==='undo'){window.testHistory[0].state='undone';return null;}
@@ -189,6 +190,13 @@ class DesktopBrowserTests(unittest.TestCase):
         page.evaluate('window.testCollectionFailure=true')
         page.get_by_role('button',name='Confirm collection',exact=True).click()
         page.get_by_text('0 moves verified before work stopped Interrupted change needs reconciliation Check Activity before trying again',exact=True).wait_for()
+        self.assertFalse(self.errors,self.errors)
+    def test_failed_action_still_refreshes_interrupted_journal_history(self):
+        page=self.open();self.nav(page,'Collections');page.get_by_label('Select lecture.txt',exact=True).check()
+        page.evaluate('window.testTrashFailure=true')
+        page.get_by_role('button',name='Move selected to Trash',exact=True).click()
+        page.get_by_text('Trash verification was interrupted Check Activity for any completed or interrupted changes',exact=True).wait_for()
+        self.nav(page,'Activity');page.get_by_text('needs review',exact=True).wait_for()
         self.assertFalse(self.errors,self.errors)
     def test_visual_snapshots(self):
         directory=ROOT/'desktop/test-results';directory.mkdir(exist_ok=True)

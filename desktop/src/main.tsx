@@ -78,7 +78,15 @@ function App() {
       await action();
       await refresh();
     } catch (error) {
-      setMessage(String(error));
+      setMessage(
+        String(error) +
+          " Check Activity for any completed or interrupted changes",
+      );
+      try {
+        await refresh();
+      } catch {
+        /* Preserve the original action error */
+      }
     } finally {
       setBusy(false);
     }
