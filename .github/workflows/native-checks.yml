@@ -1,0 +1,54 @@
+name: native app checks
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    name: Native core on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Use the tested Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal
+      - name: Test synthetic filesystem operations
+        run: cargo +1.99.1 test --locked --manifest-path native/core/Cargo.toml
+  desktop:
+    name: Build macOS application
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Use the tested Rust toolchain
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+      - name: Install locked frontend dependencies
+        working-directory: desktop
+        run: npm ci --ignore-scripts
+      - name: Compile and bundle the app
+        working-directory: desktop
+        run: npm run tauri -- build --bundles app
+      - name: Preserve the application bundle and executable permissions
+        run: ditto -c -k --keepParent "desktop/src-tauri/target/release/bundle/macos/FilePilot AI.app" FilePilot-macOS-development.zip
+      - name: Save the unsigned development app
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: FilePilot-macOS-development
+          path: FilePilot-macOS-development.zip
+          if-no-files-found: error
+          retention-days: 7

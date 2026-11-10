@@ -38,3 +38,8 @@ htmlcov/
 *.sqlite3
 *.sqlite-wal
 *.sqlite-shm
+
+# Native and frontend build outputs
+**/target/
+**/node_modules/
+/desktop/dist/
