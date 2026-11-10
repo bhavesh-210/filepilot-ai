@@ -1,5 +1,11 @@
 # Changelog
 
+## Update the GitHub action runtimes
+
+- Move checkout and Python setup to versions that use Node 24
+- Keep both actions pinned to their verified commits
+- Remove the deprecated Node 20 action configuration
+
 ## Run scanner checks on GitHub
 
 - Run tests after each push to main
