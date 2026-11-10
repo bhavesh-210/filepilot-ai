@@ -576,7 +576,7 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                 match scan {
                     Ok(inventory) => {
                         for p in inventory.proposals {
-                            if !p.blocked {
+                            if !p.blocked && p.certain {
                                 let mut engine = state.engine.lock().unwrap();
                                 if !engine.settings.monitoring {
                                     break;
