@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "filepilot-ai"
+version = "0.1.4"
+description = "Offline, read-only filesystem inventory prototype"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+filepilot = "filepilot.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

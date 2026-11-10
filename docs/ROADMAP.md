@@ -7,10 +7,10 @@ These steps show what has been added here rather than when the local work was or
 ## First steps
 
 - [x] Add the project overview and ignore local development files
-- [ ] Add the Python package and read only scanner
-- [ ] Add project detection and filesystem safety checks
-- [ ] Add synthetic test fixtures and automated tests
-- [ ] Add category rules and the JSON report format
+- [x] Add the Python package and read only scanner
+- [x] Add project detection and filesystem safety checks
+- [x] Add synthetic test fixtures and automated tests
+- [x] Add category rules and the JSON report format
 - [ ] Add dataset validation and checks for split leakage
 - [ ] Add the local ML baseline and its evaluation results
 - [ ] Record the experiments with uncertain predictions
@@ -33,7 +33,9 @@ These steps show what has been added here rather than when the local work was or
 
 The local prototype has passed 31 automated tests on my Mac
 
-Those checks will need to pass again against the code added to this repository
+The scanner change includes 21 focused tests which have passed in the development workspace
+
+The larger local suite also covers experiments that have not been added here yet
 
 The ML experiments have only used small synthetic datasets so far
 
