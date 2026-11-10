@@ -90,6 +90,7 @@ pub struct Engine {
     pub settings: Settings,
     pub roots: HashMap<i64, Root>,
     pub permission_epoch: u64,
+    root_identities: HashMap<i64, (u64, u64)>,
     pending: HashMap<u64, Proposal>,
     next_id: u64,
 }
@@ -97,6 +98,7 @@ impl Engine {
     pub fn new(db: Connection) -> Result<Self> {
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA secure_delete=ON;
         CREATE TABLE IF NOT EXISTS roots(id INTEGER PRIMARY KEY AUTOINCREMENT,path TEXT NOT NULL UNIQUE,bookmark TEXT NOT NULL,reviewed INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS root_nodes(root_id INTEGER PRIMARY KEY,device TEXT NOT NULL,inode TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY,value TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS operations(id INTEGER PRIMARY KEY,root_id INTEGER NOT NULL,source TEXT NOT NULL,destination TEXT NOT NULL,identity TEXT NOT NULL,state TEXT NOT NULL,digest TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS corrections(root_id INTEGER NOT NULL,category TEXT NOT NULL,destination TEXT NOT NULL,PRIMARY KEY(root_id,category));
@@ -116,8 +118,28 @@ impl Engine {
             roots: HashMap::new(),
             pending: HashMap::new(),
             permission_epoch: 0,
+            root_identities: HashMap::new(),
             next_id: 1,
         })
+    }
+    fn parent(&self, id: i64, relative: &str) -> std::io::Result<(std::fs::File, String)> {
+        let root = self
+            .roots
+            .get(&id)
+            .ok_or_else(|| std::io::Error::other("Folder is not authorized"))?;
+        let expected = self
+            .root_identities
+            .get(&id)
+            .ok_or_else(|| std::io::Error::other("Root identity missing"))?;
+        fs::parent_checked(Path::new(&root.path), relative, Some(*expected))
+    }
+    fn opened_root(&self, id: i64) -> Result<std::fs::File> {
+        let root = self.roots.get(&id).ok_or("Folder is not authorized")?;
+        let expected = self
+            .root_identities
+            .get(&id)
+            .ok_or("Root identity missing")?;
+        fs::root_checked(Path::new(&root.path), *expected).map_err(message)
     }
     pub fn saved_roots(&self) -> Result<Vec<Root>> {
         let mut query = self
@@ -155,20 +177,75 @@ impl Engine {
             }
         }
         self.db.execute("INSERT INTO roots(path,bookmark) VALUES(?,?) ON CONFLICT(path) DO UPDATE SET bookmark=excluded.bookmark",params![path,bookmark]).map_err(message)?;
-        let root = self
+        let mut root = self
             .saved_roots()?
             .into_iter()
             .find(|r| r.path == path)
             .ok_or("Missing root")?;
         let id = root.id;
+        use std::os::unix::fs::MetadataExt;
+        let meta = fd.metadata().map_err(message)?;
+        let previous = self
+            .db
+            .query_row(
+                "SELECT device,inode FROM root_nodes WHERE root_id=?",
+                [id],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            )
+            .ok();
+        let node = (meta.dev().to_string(), meta.ino().to_string());
+        if previous.as_ref() != Some(&node) {
+            self.db
+                .execute("UPDATE roots SET reviewed=0 WHERE id=?", [id])
+                .map_err(message)?;
+            root.initial_reviewed = false;
+            self.db
+                .execute("DELETE FROM corrections WHERE root_id=?", [id])
+                .map_err(message)?;
+            self.db
+                .execute("DELETE FROM rules WHERE root_id=?", [id])
+                .map_err(message)?;
+        }
+        self.db
+            .execute(
+                "INSERT OR REPLACE INTO root_nodes VALUES(?,?,?)",
+                params![id, node.0, node.1],
+            )
+            .map_err(message)?;
+        self.root_identities.insert(id, (meta.dev(), meta.ino()));
         self.roots.insert(id, root);
         Ok(id)
     }
+    pub fn restore(&mut self, path: PathBuf, bookmark: String) -> Result<i64> {
+        use std::os::unix::fs::MetadataExt;
+        let saved = self
+            .saved_roots()?
+            .into_iter()
+            .find(|r| Path::new(&r.path) == path && !r.bookmark.is_empty())
+            .ok_or("Folder access must be renewed")?;
+        let expected: (String, String) = self
+            .db
+            .query_row(
+                "SELECT device,inode FROM root_nodes WHERE root_id=?",
+                [saved.id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .map_err(|_| "Folder identity must be renewed")?;
+        let meta = fs::root(&path)
+            .map_err(message)?
+            .metadata()
+            .map_err(message)?;
+        if expected != (meta.dev().to_string(), meta.ino().to_string()) {
+            return Err("Folder identity changed explicit renewal required".into());
+        }
+        self.authorize(path, bookmark)
+    }
     pub fn revoke(&mut self, id: i64) -> Result<()> {
         self.roots.remove(&id);
+        self.root_identities.remove(&id);
         self.pending.retain(|_, p| p.root_id != id);
         self.db
-            .execute("DELETE FROM roots WHERE id=?", [id])
+            .execute("UPDATE roots SET bookmark='',reviewed=0 WHERE id=?", [id])
             .map_err(message)?;
         Ok(())
     }
@@ -190,7 +267,7 @@ impl Engine {
     }
     pub fn create_categories(&self, id: i64) -> Result<()> {
         let root = self.roots.get(&id).ok_or("Folder is not authorized")?;
-        let fd = fs::root(Path::new(&root.path)).map_err(message)?;
+        let fd = self.opened_root(root.id)?;
         if fs::project(fd.as_raw_fd()) {
             return Err("Project protected".into());
         }
@@ -218,7 +295,8 @@ impl Engine {
             return Err("Unknown category".into());
         }
         let root = self.roots.get(&id).ok_or("Folder is not authorized")?;
-        fs::parent(Path::new(&root.path), &format!("{destination}/validation")).map_err(message)?;
+        self.parent(root.id, &format!("{destination}/validation"))
+            .map_err(message)?;
         if rule {
             self.db
                 .execute(
@@ -258,8 +336,7 @@ impl Engine {
             .ok_or("Folder is not authorized")?
             .clone();
         self.pending.retain(|_, p| p.root_id != id);
-        let base = Path::new(&root.path);
-        let fd = fs::root(base).map_err(message)?;
+        let fd = self.opened_root(root.id)?;
         let mut inventory = Inventory {
             root_id: id,
             files: 0,
@@ -347,7 +424,7 @@ impl Engine {
                 .to_string();
                 let mut blocked = destination.is_none();
                 if let Some(dest) = &destination {
-                    match fs::parent(base, dest) {
+                    match self.parent(root.id, dest) {
                         Ok((parent, basename)) => {
                             if fs::exists(&parent, &basename).unwrap_or(true) {
                                 blocked = true;
@@ -460,9 +537,8 @@ impl Engine {
             }
         }
         let destination = p.destination.ok_or("Missing destination")?;
-        let base = Path::new(&root.path);
-        let (from, source) = fs::parent(base, &p.source).map_err(message)?;
-        let (to, target) = fs::parent(base, &destination).map_err(message)?;
+        let (from, source) = self.parent(root.id, &p.source).map_err(message)?;
+        let (to, target) = self.parent(root.id, &destination).map_err(message)?;
         let current = fs::identity(&from, &source).map_err(message)?;
         if current != p.snapshot {
             return Err("File changed since preview".into());
@@ -502,7 +578,7 @@ impl Engine {
     pub fn analysis_text(&self, proposal_id: u64) -> Result<(String, bool)> {
         let p = self.pending.get(&proposal_id).ok_or("Proposal expired")?;
         let root = self.roots.get(&p.root_id).ok_or("Folder access revoked")?;
-        let (directory, name) = fs::parent(Path::new(&root.path), &p.source).map_err(message)?;
+        let (directory, name) = self.parent(root.id, &p.source).map_err(message)?;
         if fs::identity(&directory, &name).map_err(message)? != p.snapshot {
             return Err("File changed since preview".into());
         }
@@ -531,8 +607,7 @@ impl Engine {
             return Err("Scan again before reviewing".into());
         }
         let root = self.roots.get(&p.root_id).ok_or("Folder access revoked")?;
-        let base = Path::new(&root.path);
-        let (from, name) = fs::parent(base, &p.source).map_err(message)?;
+        let (from, name) = self.parent(root.id, &p.source).map_err(message)?;
         if fs::identity(&from, &name).map_err(message)? != p.snapshot {
             return Err("Source changed".into());
         }
@@ -549,7 +624,7 @@ impl Engine {
             name
         };
         let destination = format!("{category}/{filename}");
-        let (to, target) = fs::parent(base, &destination).map_err(message)?;
+        let (to, target) = self.parent(root.id, &destination).map_err(message)?;
         if fs::exists(&to, &target).map_err(message)? {
             return Err("Destination collision".into());
         }
@@ -563,8 +638,7 @@ impl Engine {
     }
     pub fn duplicates(&self, id: i64) -> Result<serde_json::Value> {
         let root = self.roots.get(&id).ok_or("Folder is not authorized")?;
-        let base = Path::new(&root.path);
-        let mut stack = vec![(fs::root(base).map_err(message)?, String::new(), 0)];
+        let mut stack = vec![(self.opened_root(root.id)?, String::new(), 0)];
         let mut sizes: HashMap<u64, Vec<(String, Identity)>> = HashMap::new();
         let mut entries = 0;
         let mut partial = false;
@@ -619,7 +693,7 @@ impl Engine {
                     partial = true;
                     continue;
                 }
-                let (directory, name) = fs::parent(base, &path).map_err(message)?;
+                let (directory, name) = self.parent(root.id, &path).map_err(message)?;
                 match fs::digest(&directory, &name, &identity) {
                     Ok(hash) => {
                         bytes += identity.size;
@@ -676,9 +750,8 @@ impl Engine {
             .roots
             .get(&root_id)
             .ok_or("Authorize the original folder before Undo")?;
-        let base = Path::new(&root.path);
-        let (from, current_name) = fs::parent(base, &destination).map_err(message)?;
-        let (to, original_name) = fs::parent(base, &source).map_err(message)?;
+        let (from, current_name) = self.parent(root.id, &destination).map_err(message)?;
+        let (to, original_name) = self.parent(root.id, &source).map_err(message)?;
         let expected: Identity = serde_json::from_str(&identity).map_err(message)?;
         if fs::identity(&from, &current_name).map_err(message)? != expected {
             return Err("File changed after operation".into());
@@ -733,7 +806,6 @@ impl Engine {
             let Some(root) = self.roots.get(&op.root_id) else {
                 continue;
             };
-            let base = Path::new(&root.path);
             let raw: String = self
                 .db
                 .query_row("SELECT identity FROM operations WHERE id=?", [op.id], |r| {
@@ -747,8 +819,8 @@ impl Engine {
                     r.get(0)
                 })
                 .map_err(message)?;
-            let from = fs::parent(base, &op.source);
-            let to = fs::parent(base, &op.destination);
+            let from = self.parent(root.id, &op.source);
+            let to = self.parent(root.id, &op.destination);
             let state = if let (Ok((a, s)), Ok((b, d))) = (from, to) {
                 let src = fs::identity(&a, &s).ok();
                 let dst = fs::identity(&b, &d).ok();
@@ -872,5 +944,99 @@ mod recovery_tests {
         fs::move_exclusive(&to, &dest, &from, &name).unwrap();
         engine.recover().unwrap();
         assert_eq!(engine.history().unwrap()[0].state, "undone");
+    }
+}
+#[cfg(test)]
+mod fault_tests {
+    use super::*;
+    fn setup() -> (tempfile::TempDir, Engine, i64, u64) {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().canonicalize().unwrap();
+        let mut engine =
+            Engine::new(Connection::open(path.join("journal.sqlite")).unwrap()).unwrap();
+        let root = engine.authorize(path.clone(), "synthetic".into()).unwrap();
+        engine.create_categories(root).unwrap();
+        std::fs::write(path.join("lecture.txt"), "synthetic").unwrap();
+        let file = std::fs::File::options()
+            .write(true)
+            .open(path.join("lecture.txt"))
+            .unwrap();
+        file.set_times(
+            std::fs::FileTimes::new()
+                .set_modified(SystemTime::now() - std::time::Duration::from_secs(60)),
+        )
+        .unwrap();
+        let id = engine
+            .scan(root)
+            .unwrap()
+            .proposals
+            .into_iter()
+            .find(|p| p.source == "lecture.txt")
+            .unwrap()
+            .id;
+        (temp, engine, root, id)
+    }
+    #[test]
+    fn journal_failure_before_move_preserves_source() {
+        let (temp, mut engine, _, id) = setup();
+        engine.db.execute_batch("CREATE TRIGGER fail_intent BEFORE INSERT ON operations BEGIN SELECT RAISE(ABORT,'synthetic fault'); END;").unwrap();
+        assert!(engine.apply(id, true).is_err());
+        assert!(temp.path().join("lecture.txt").exists());
+        assert!(!temp.path().join("Education/lecture.txt").exists());
+    }
+    #[test]
+    fn failure_after_move_recovers_from_disk() {
+        let (temp, mut engine, root, id) = setup();
+        engine.db.execute_batch("CREATE TRIGGER fail_commit BEFORE UPDATE OF state ON operations WHEN NEW.state='applied' BEGIN SELECT RAISE(ABORT,'synthetic fault'); END;").unwrap();
+        assert!(engine.apply(id, true).is_err());
+        assert!(temp.path().join("Education/lecture.txt").exists());
+        drop(engine);
+        let db = Connection::open(temp.path().join("journal.sqlite")).unwrap();
+        db.execute_batch("DROP TRIGGER fail_commit").unwrap();
+        let mut restarted = Engine::new(db).unwrap();
+        assert_eq!(
+            restarted
+                .authorize(temp.path().canonicalize().unwrap(), "synthetic".into())
+                .unwrap(),
+            root
+        );
+        restarted.recover().unwrap();
+        let operation = restarted.history().unwrap().remove(0);
+        assert_eq!(operation.state, "applied");
+        restarted.undo(operation.id).unwrap();
+        assert!(temp.path().join("lecture.txt").exists());
+    }
+    #[test]
+    fn interrupted_undo_is_reconciled() {
+        let (temp, mut engine, _, id) = setup();
+        let op = engine.apply(id, true).unwrap();
+        engine.db.execute_batch("CREATE TRIGGER fail_undo_commit BEFORE UPDATE OF state ON operations WHEN NEW.state='undone' BEGIN SELECT RAISE(ABORT,'synthetic fault'); END;").unwrap();
+        assert!(engine.undo(op).is_err());
+        assert!(temp.path().join("lecture.txt").exists());
+        assert_eq!(engine.history().unwrap()[0].state, "undo_pending");
+        engine
+            .db
+            .execute_batch("DROP TRIGGER fail_undo_commit")
+            .unwrap();
+        engine.recover().unwrap();
+        assert_eq!(engine.history().unwrap()[0].state, "undone");
+    }
+    #[test]
+    fn ambiguous_recovery_never_overwrites() {
+        let (temp, mut engine, _, id) = setup();
+        engine.db.execute_batch("CREATE TRIGGER fail_commit BEFORE UPDATE OF state ON operations WHEN NEW.state='applied' BEGIN SELECT RAISE(ABORT,'synthetic fault'); END;").unwrap();
+        assert!(engine.apply(id, true).is_err());
+        std::fs::write(temp.path().join("lecture.txt"), "new source occupant").unwrap();
+        engine.db.execute_batch("DROP TRIGGER fail_commit").unwrap();
+        engine.recover().unwrap();
+        assert_eq!(engine.history().unwrap()[0].state, "needs_review");
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("lecture.txt")).unwrap(),
+            "new source occupant"
+        );
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("Education/lecture.txt")).unwrap(),
+            "synthetic"
+        );
     }
 }

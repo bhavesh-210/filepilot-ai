@@ -384,7 +384,7 @@ fn main() {
                 if let Ok(bookmark) = CString::new(saved.bookmark.clone()) {
                     if let Ok(value) = unsafe { native_json(fp_resolve_root(bookmark.as_ptr())) } {
                         if value["path"].as_str() == Some(&saved.path) {
-                            let _ = engine.authorize(PathBuf::from(&saved.path), saved.bookmark);
+                            let _ = engine.restore(PathBuf::from(&saved.path), saved.bookmark);
                         }
                     }
                 }

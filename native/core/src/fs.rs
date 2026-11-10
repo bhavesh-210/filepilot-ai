@@ -152,9 +152,31 @@ pub fn project(fd: i32) -> bool {
                 || (*name == ".git" && st.st_mode & libc::S_IFMT == libc::S_IFDIR))
     })
 }
+pub fn root_checked(path: &Path, expected: (u64, u64)) -> io::Result<File> {
+    use std::os::unix::fs::MetadataExt;
+    let file = root(path)?;
+    let meta = file.metadata()?;
+    if (meta.dev(), meta.ino()) != expected {
+        return Err(err(
+            "Authorized root identity changed choose the folder again",
+        ));
+    }
+    Ok(file)
+}
 pub fn parent(root: &Path, relative: &str) -> io::Result<(File, String)> {
+    parent_checked(root, relative, None)
+}
+pub fn parent_checked(
+    root: &Path,
+    relative: &str,
+    expected: Option<(u64, u64)>,
+) -> io::Result<(File, String)> {
     let components = parts(relative)?;
-    let mut fd = self::root(root)?;
+    let mut fd = if let Some(expected) = expected {
+        root_checked(root, expected)?
+    } else {
+        self::root(root)?
+    };
     if project(fd.as_raw_fd()) {
         return Err(err("Project root is protected"));
     }
@@ -261,8 +283,16 @@ pub fn names(directory: &File) -> io::Result<Vec<String>> {
     let result = (|| {
         let mut names = Vec::new();
         loop {
+            #[cfg(target_os = "macos")]
+            let error = unsafe { libc::__error() };
+            #[cfg(target_os = "linux")]
+            let error = unsafe { libc::__errno_location() };
+            unsafe { *error = 0 };
             let entry = unsafe { libc::readdir(dir) };
             if entry.is_null() {
+                if unsafe { *error } != 0 {
+                    return Err(io::Error::last_os_error());
+                }
                 break;
             }
             let name = unsafe { std::ffi::CStr::from_ptr((*entry).d_name.as_ptr()) }

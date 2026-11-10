@@ -235,3 +235,66 @@ fn permission_cancellation_prevents_move_and_undo() {
     assert!(d.path().join("Education/lecture.txt").exists());
     assert_eq!(e.history().unwrap()[0].state, "applied");
 }
+#[test]
+fn replacing_an_authorized_root_requires_renewal() {
+    let outer = tempfile::tempdir().unwrap();
+    let base = outer.path().canonicalize().unwrap();
+    let root = base.join("authorized");
+    fs::create_dir(&root).unwrap();
+    let mut engine = Engine::new(Connection::open_in_memory().unwrap()).unwrap();
+    let id = engine.authorize(root.clone(), "test".into()).unwrap();
+    engine.create_categories(id).unwrap();
+    fs::write(root.join("lecture.txt"), "original").unwrap();
+    stable(&root.join("lecture.txt"));
+    let proposal = engine.scan(id).unwrap().proposals.remove(0);
+    fs::rename(&root, base.join("original")).unwrap();
+    fs::create_dir(&root).unwrap();
+    fs::create_dir(root.join("Education")).unwrap();
+    fs::write(root.join("lecture.txt"), "replacement").unwrap();
+    assert!(engine.apply(proposal.id, true).is_err());
+    assert!(engine.scan(id).is_err());
+    assert_eq!(
+        fs::read_to_string(root.join("lecture.txt")).unwrap(),
+        "replacement"
+    );
+    assert_eq!(
+        fs::read_to_string(base.join("original/lecture.txt")).unwrap(),
+        "original"
+    );
+}
+#[test]
+fn kernel_exclusive_rename_preserves_collision() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().canonicalize().unwrap();
+    fs::write(path.join("source.txt"), "source").unwrap();
+    fs::write(path.join("destination.txt"), "existing").unwrap();
+    let (a, source) = filepilot_core::fs::parent(&path, "source.txt").unwrap();
+    let (b, target) = filepilot_core::fs::parent(&path, "destination.txt").unwrap();
+    assert!(filepilot_core::fs::move_exclusive(&a, &source, &b, &target).is_err());
+    assert_eq!(
+        fs::read_to_string(path.join("source.txt")).unwrap(),
+        "source"
+    );
+    assert_eq!(
+        fs::read_to_string(path.join("destination.txt")).unwrap(),
+        "existing"
+    );
+}
+#[test]
+fn revoked_root_can_be_renewed_for_verified_undo() {
+    let (d, mut engine, id) = setup();
+    let p = engine.scan(id).unwrap().proposals.remove(0);
+    let op = engine.apply(p.id, true).unwrap();
+    engine.revoke(id).unwrap();
+    assert!(engine.undo(op).is_err());
+    assert!(engine
+        .restore(d.path().canonicalize().unwrap(), "test".into())
+        .is_err());
+    let renewed = engine
+        .authorize(d.path().canonicalize().unwrap(), "renewed".into())
+        .unwrap();
+    assert_eq!(renewed, id);
+    assert!(!engine.roots[&id].initial_reviewed);
+    engine.undo(op).unwrap();
+    assert!(d.path().join("lecture.txt").exists());
+}

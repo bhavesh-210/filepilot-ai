@@ -20,7 +20,8 @@ public func chooseRoot() -> UnsafeMutablePointer<CChar>? {
     do {
         let bookmark = try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
         let canonical=url.resolvingSymlinksInPath().path
-        if held[canonical] == nil && url.startAccessingSecurityScopedResource() {held[canonical] = url}
+        if let previous=held.removeValue(forKey:canonical) {previous.stopAccessingSecurityScopedResource()}
+        if url.startAccessingSecurityScopedResource() {held[canonical] = url}
         return output(["path": url.resolvingSymlinksInPath().path, "bookmark": bookmark.base64EncodedString()])
     } catch { return output(["error": "Could not retain folder access"]) }
 }
@@ -32,7 +33,8 @@ public func resolveRoot(_ encoded: UnsafePointer<CChar>) -> UnsafeMutablePointer
         let url = try URL(resolvingBookmarkData:data, options:[.withSecurityScope,.withoutUI], relativeTo:nil, bookmarkDataIsStale:&stale)
         guard !stale else { return output(["error":"Folder access needs renewal"]) }
         let canonical=url.resolvingSymlinksInPath().path
-        if held[canonical] == nil && url.startAccessingSecurityScopedResource() {held[canonical] = url}
+        if let previous=held.removeValue(forKey:canonical) {previous.stopAccessingSecurityScopedResource()}
+        if url.startAccessingSecurityScopedResource() {held[canonical] = url}
         return output(["path":url.resolvingSymlinksInPath().path])
     } catch { return output(["error":"Folder access must be renewed"]) }
 }

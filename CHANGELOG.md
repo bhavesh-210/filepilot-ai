@@ -1,3 +1,11 @@
+# Native safety and recovery checks
+
+Bound active folders to their selected directory identity
+Preserved Undo references when folder access is revoked and later renewed
+Added durable restart and database fault simulation tests
+Added cancellation checks before pending moves and Undo
+Prepared a universal development build for Apple silicon and Intel
+
 # Native alpha implementation
 
 Added the React TypeScript and Tauri desktop app

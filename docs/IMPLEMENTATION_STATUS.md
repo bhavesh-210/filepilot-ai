@@ -29,7 +29,8 @@ See NATIVE_APP for exact limits and residual risks
 - [ ] Test lock sleep wake restart login item and window lifecycle on a real Mac
 - [ ] Validate iCloud and other File Provider behaviour without accidental hydration
 - [ ] Security review filesystem races parser inputs webview permissions and recovery
-- [ ] Failure injection across journal writes filesystem operations and storage faults
+- [x] Synthetic database failure injection before moves after moves and during Undo
+- [ ] Storage device and provider failure injection beyond database trigger simulations
 - [ ] Human label review and an independent destination benchmark
 - [ ] Evaluate semantic quality language coverage and unknown handling
 - [ ] Integrate and validate PDF content analysis in the native app

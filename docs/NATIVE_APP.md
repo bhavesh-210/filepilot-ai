@@ -7,8 +7,10 @@ The native core is a separate Rust crate with no webview or network dependency
 A small Swift bridge handles system folder selection security scoped bookmarks login item registration and optional local English embeddings
 
 The macOS folder picker is the only path used to grant a new root
-Bookmarks are retained in the private local application database
+Bookmarks and the selected directory identity are retained in the private local application database
 Stale or unavailable bookmarks require the user to choose the folder again
+Replacing the selected directory requires explicit renewal rather than authorizing a new directory at the old path
+Revocation clears the bookmark while retaining operation references for Undo after renewed authorization
 Overlapping roots are rejected
 Full Disk Access Accessibility and Finder Automation are not requested
 The development build is not App Store sandboxed and must not be described as sandbox audited
@@ -22,6 +24,7 @@ Scan and review the preview
 Apply individual moves or explicitly acknowledge the preview to enable the current autonomy mode
 Background organization is gated until that acknowledgement
 Changing settings invalidates pending proposals
+A cancellation epoch is checked immediately before a move or Undo so a settings or access change can cancel work that is still hashing
 Revoking access removes the root from active processing
 
 Full autonomy is the initial preference
@@ -116,7 +119,7 @@ No data is uploaded or shared with other users
 
 ## Development builds
 
-The native workflow builds and archives a macOS application with executable permissions preserved
+The native workflow builds a universal macOS application for Apple silicon and Intel and archives it with executable permissions preserved
 Build artifacts are temporary development downloads rather than a signed public release
 Signing notarization update delivery and release security review remain pending
 No Apple developer credentials should be committed to this repository

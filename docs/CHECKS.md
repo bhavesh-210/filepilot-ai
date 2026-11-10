@@ -90,3 +90,15 @@ The core suite includes deterministic planner policy and SQLite preference tests
 A separate Chromium job verifies the offline review screen with synthetic plans
 Browser tests check mode changes export boundaries invalid imports markup safety and narrow layouts
 Browser tools are test only dependencies and are not used by the scanner
+
+## Native application checks
+
+A separate workflow tests the Rust core on Linux and macOS
+The filesystem tests use disposable folders only
+Fault tests simulate journal insert failure commit failure interrupted Undo and ambiguous recovery
+Other tests cover root replacement permission cancellation revocation renewal and kernel exclusive collisions
+
+The desktop job compiles the Swift helpers and a universal Tauri app
+It preserves bundle permissions in a development artifact
+The React workflow tests use a synthetic IPC mock
+Real system dialogs login item approval cloud providers and sleep wake behaviour remain manual acceptance gates

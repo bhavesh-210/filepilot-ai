@@ -2,11 +2,17 @@ name: native app checks
 on:
   push:
     branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'native/**'
+      - '.github/workflows/native-checks.yml'
+      - 'scripts/check_desktop_browser.py'
+      - 'requirements-browser-tests.txt' 
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: native-${{ github.ref }}
+  group: filepilot-native-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   core:
