@@ -1,3 +1,15 @@
+# One time setup and calmer daily use
+
+Replaced the tool dashboard with setup overview review folders activity and preferences
+Added multi folder selection through the macOS picker
+Added persistent structure preferences and optional startup during setup
+Mapped existing safe folders before planning loose file moves
+Reused meaningful destinations and preserved existing collections
+Added fresh token checked first cleanup plans with only needed folder creation
+Fed the review inbox from automatic background inventories
+Kept uncertainty Trash permissions project protection and Undo behind their existing safety rules
+Added synthetic setup folder structure cancellation and interface workflow tests
+
 # Bundled SQLite security update
 
 Updated the core and desktop database dependency to the patched SQLite release

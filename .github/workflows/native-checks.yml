@@ -96,3 +96,11 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Test synthetic frontend workflows
         run: python scripts/check_desktop_browser.py
+      - name: Save synthetic interface screenshots
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: FilePilot-interface-checks
+          path: desktop/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

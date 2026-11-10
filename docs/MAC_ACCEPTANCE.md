@@ -41,3 +41,16 @@ Do not remove macOS quarantine attributes or weaken system security to make acce
 - [ ] Missing helper parser failure and timeout return an error without moving files
 - [ ] Remembered examples improve suggestions only after an explicit request
 - [ ] Nearest example suggestions still require move approval in Full autonomy
+
+## One time setup and structure
+
+- [ ] Choose several disposable folders in one system picker and verify each access is retained after relaunch
+- [ ] Cancel the picker and confirm nothing is enabled or changed
+- [ ] Confirm a rejected overlapping grant does not remove existing access
+- [ ] Review the first structure preview and verify no folders exist until Start is selected
+- [ ] Change a synthetic source or destination structure before Start and verify a fresh preview is required
+- [ ] Verify a single College folder is reused while nested collections remain untouched
+- [ ] Verify multiple alias folders keep ambiguous loose files for review
+- [ ] Start maintenance and observe automatic inbox updates without clicking scan
+- [ ] Enable startup in onboarding and verify the real system approval and next sign in behavior
+- [ ] Pause and revoke access while analysis is running and verify subsequent changes are cancelled

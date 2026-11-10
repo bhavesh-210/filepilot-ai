@@ -1,5 +1,16 @@
 # Implementation status
 
+## One time setup iteration
+
+The native app now has onboarding overview automatic review inbox folder coverage activity and preferences
+Folder permissions are granted explicitly through one multi selection system picker
+The first cleanup plan includes safe structure inventory and needed folder creation
+Setup completion requires an unchanged preview and current permissions
+The planner preserves existing collections and reuses named folders for loose files
+This is conservative metadata planning and not a validated model that can redesign every Finder folder
+Automatic duplicate removal and permanent deletion are not implemented
+Real Mac permission and lifecycle acceptance and production signing remain open
+
 ## Implemented foundations
 
 - [x] Read only Python scanner report and classification rules

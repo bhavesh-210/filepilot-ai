@@ -102,3 +102,17 @@ Earlier pending lists describe the roadmap at the time and are superseded by the
 - [x] Honor custom destinations in Limited autonomy
 
 The production release gates remain in IMPLEMENTATION_STATUS
+
+## One time setup iteration
+
+- [x] Replace repeated manual scan workflow with setup and background review inbox
+- [x] Allow multiple explicit folder grants in the macOS picker
+- [x] Persist whether existing named folders should be reused
+- [x] Inventory safe folder structure before planning loose file moves
+- [x] Keep existing collections together rather than flattening them
+- [x] Preview needed new folders and validate the plan again before setup
+- [x] Offer startup once during onboarding
+- [x] Add synthetic workflow regression tests
+- [ ] Complete real Mac folder permission startup and sleep wake acceptance
+- [ ] Evaluate broader semantic structure recommendations with reviewed data
+- [ ] Sign notarize and independently audit a production release

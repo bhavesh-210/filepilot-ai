@@ -17,12 +17,24 @@ The development build is not App Store sandboxed and must not be described as sa
 
 ## First use
 
-Start with a disposable test folder
-Choose that folder through the app
-Create category folders only when requested
-Scan and review the preview
-Apply individual moves or explicitly acknowledge the preview to enable the current autonomy mode
-Background organization is gated until that acknowledgement
+Start with disposable test folders
+The setup wizard saves everyday preferences and offers automatic startup through the system login item
+The user can choose multiple folders in one macOS panel
+Each folder retains its own bookmark and directory identity
+Only selected folders are covered and the app does not claim control over every Finder location
+
+The first cleanup preview inventories the structure and lists source destination and reasoning
+It also lists only the missing category folders needed by the current stable known proposals
+Nothing is created during preview
+Starting maintenance validates the preview token settings authorization epoch and a fresh inventory
+Changed files or folder structure require a fresh preview
+Accepted category creation is journaled before the root becomes eligible for background work
+A mode or access change can cancel setup directory creation before the next change
+Smart approval still requires an individual approval for every move
+
+The overview provides Pause and Resume
+Background inventories populate the review inbox without a manual scan
+Preferences folder coverage duplicate tools personal rules and activity are separate pages
 Changing settings invalidates pending proposals
 A cancellation epoch is checked immediately before a move or Undo so a settings or access change can cancel work that is still hashing
 Revoking access removes the root from active processing
@@ -42,7 +54,15 @@ File identity size timestamps and a SHA256 digest are verified around moves
 Files must have a modification time at least ten seconds old
 This age check and metadata comparison do not prove that another process has closed the file
 Moves are limited to regular single link files at most 64 MiB
-Destinations must be existing folders inside the same authorized root
+The planner inventories safe directories before choosing destinations
+It can reuse exact named category folders or unambiguous aliases such as College Work and Photos
+Multiple equally suitable existing destinations require review
+Existing collections are inventoried without extracting or rearranging their files
+Only loose files at the selected root or directly inside Desktop Downloads Documents and Inbox are proposed
+This is a conservative folder name heuristic rather than a semantic understanding of every folder
+Full autonomy may create a missing canonical category folder during ongoing maintenance after first setup
+Smart and Limited modes do not create new folders in the background
+Execution destinations must be existing folders inside the same authorized root
 Cross volume moves are rejected rather than copied
 
 The final rename uses kernel exclusive destination flags

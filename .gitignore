@@ -46,3 +46,6 @@ htmlcov/
 
 # Compiled local PDF parser resource
 /desktop/src-tauri/parser/
+
+# Synthetic browser screenshots
+/desktop/test-results/

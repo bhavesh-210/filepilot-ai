@@ -117,3 +117,11 @@ The dependency workflow checks both Rust lockfiles and the frontend lockfile
 The bundled SQLite version has a security regression test
 All platform informational advisories remain visible in the audit reports
 See DEPENDENCY_AUDIT for the current results and checked Mac target scope
+
+## Setup and structure workflow
+
+The Rust suite includes 14 additional scenarios for first preview read only behavior needed folder creation stale preview tokens changed files folder structure policy and authorization changes
+It also checks preservation of nested collections project and symlink destination rejection ambiguity review inbox updates preference persistence and cancelled setup changes
+The React suite includes 13 synthetic workflows covering one time setup automatic inbox population manual approval Undo pause settings invalidation local inspection Trash cancellation learning untrusted names and small screen navigation
+Screenshots of the synthetic overview review and setup screens are saved as a workflow artifact
+These browser tests mock the native bridge and do not prove actual macOS permission behavior

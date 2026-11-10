@@ -32,13 +32,19 @@ Do not copy real financial documents credentials or private work into the first 
 
 ## Review before enabling organization
 
-Choose the test folder through the app folder picker
-Create the category folders when you are ready
-Scan and read the source destination and reason for each proposal
-For individual control choose Smart approval
-Approve a single synthetic move and verify its result in Finder
-Use Undo and verify that it restores the file
-Full autonomy starts only after the initial preview is explicitly acknowledged
+Open Overview and choose your preferences in the one time setup
+For the first test choose Smart approval
+Choose one or several disposable test folders using the macOS picker
+Select Understand my folders and expand the first cleanup preview
+Read the folder structure source destination and reason for each proposal
+Check which new category folders would be created
+Select Start maintaining my folders only after reviewing that plan
+If automatic startup was selected macOS may require login item approval
+Open Review inbox and approve a single synthetic move
+Verify its result in Finder
+Open Activity and use Undo then verify that it restores the file
+Full autonomy handles eligible future changes after setup without repeated scan clicks
+The app maintains only the folders you explicitly allow
 
 ## Test the other controls
 
