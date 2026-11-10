@@ -13,11 +13,15 @@
 - [x] Conservative Undo and interrupted operation reconciliation
 - [x] Three autonomy modes and stale proposal invalidation
 - [x] Initial preview gate and authorized root revocation
-- [x] Explicit corrections with disable and clear controls
+- [x] Explicit corrections and filename examples with disable and clear controls
+- [x] Conservative nearest neighbor suggestions that always require review
 - [x] FSEvents backend and scheduled reconciliation implementation
 - [x] Window closed monitoring and login item bridge
 - [x] Read only bounded duplicate detection
 - [x] Optional installed macOS English semantic suggestions with manual review
+- [x] Bundled isolated PDF inspection with input page text and time limits
+- [x] Separately confirmed Trash and guarded Trash Undo
+- [x] Category directory setup journal and migration support
 
 Implementation does not mean production acceptance
 The native alpha needs the release gates below
@@ -33,10 +37,10 @@ See NATIVE_APP for exact limits and residual risks
 - [ ] Storage device and provider failure injection beyond database trigger simulations
 - [ ] Human label review and an independent destination benchmark
 - [ ] Evaluate semantic quality language coverage and unknown handling
-- [ ] Integrate and validate PDF content analysis in the native app
-- [ ] Evaluate neural and nearest neighbor personalization before enabling it
-- [ ] Implement separately confirmed Trash operations with verified Undo
-- [ ] Record category directory creation in the operation journal
+- [ ] Validate native PDF parsing against a broader licensed adversarial corpus
+- [ ] Evaluate personalization quality and collect enough explicit corrections before neural retraining
+- [ ] Accept native Trash confirmation system permissions and recovery on a real Mac
+- [ ] Review directory setup recovery under storage failure
 - [ ] Developer ID signing notarization and trusted installation validation
 - [ ] Decide and test an optional transparent update mechanism
 

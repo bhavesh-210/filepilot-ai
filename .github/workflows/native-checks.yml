@@ -7,7 +7,9 @@ on:
       - 'native/**'
       - '.github/workflows/native-checks.yml'
       - 'scripts/check_desktop_browser.py'
-      - 'requirements-browser-tests.txt' 
+      - 'scripts/build_pdf_helper.sh'
+      - 'scripts/check_native_pdf.py'
+      - 'requirements-browser-tests.txt'
   workflow_dispatch:
 permissions:
   contents: read
@@ -51,6 +53,10 @@ jobs:
       - name: Install locked frontend dependencies
         working-directory: desktop
         run: npm ci --ignore-scripts
+      - name: Build and test the isolated PDF parser
+        run: |
+          bash scripts/build_pdf_helper.sh
+          python3 scripts/check_native_pdf.py
       - name: Compile and bundle the app
         working-directory: desktop
         run: npm run tauri -- build --target universal-apple-darwin --bundles app

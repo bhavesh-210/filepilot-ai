@@ -102,3 +102,8 @@ The desktop job compiles the Swift helpers and a universal Tauri app
 It preserves bundle permissions in a development artifact
 The React workflow tests use a synthetic IPC mock
 Real system dialogs login item approval cloud providers and sleep wake behaviour remain manual acceptance gates
+
+The native core suite also tests the parser protocol timeout process group termination separately confirmed Trash Trash Undo and legacy journal migration
+The Mac build job runs five synthetic PDFKit worker tests before bundling the helper
+The React workflow covers cancelling Trash without approving an ordinary move
+No automated test accepts a real system permission dialog or uses a personal document

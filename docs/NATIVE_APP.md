@@ -53,7 +53,7 @@ Use the alpha with disposable folders only until the Mac acceptance and security
 
 ## Journal Undo and crash recovery
 
-The SQLite journal records an intent before a move or rename
+The SQLite journal records an intent before a move rename Trash action or category directory setup
 Journal writes use full synchronous durability
 The engine records the resulting identity after exclusive rename and parent directory synchronization
 Interrupted moves and Undo are reconciled on restart only when the expected identity and content digest match an unambiguous location
@@ -62,7 +62,7 @@ Unresolved journal operations block further moves in that root
 Undo refuses changed files occupied original destinations and unauthorized roots
 
 The history contains relative paths hashes and metadata rather than document contents
-Category directory creation is not currently part of reversible file operation history
+Category directory setup is journaled but is not automatically undone because removing directories needs a separate deletion policy
 A storage device filesystem or process failure can exceed the durability guarantees of these primitives
 
 ## Background processing
@@ -88,15 +88,37 @@ It hashes candidate files with matching sizes and reports matching SHA256 groups
 Files over 64 MiB are excluded and each request hashes at most 256 MiB
 Limits and errors can make the result partial
 Duplicate groups are observations rather than deletion permission
-Trash and permanent deletion are unavailable in this alpha
+Duplicate candidates can be selected for a separately confirmed Trash action
+Permanent deletion is unavailable
+
+## Separately confirmed Trash actions
+
+The app shows a native Cancel or Move to Trash confirmation for each requested file
+Full autonomy never skips this confirmation
+The trusted Swift bridge obtains the system Trash location rather than accepting it from an imported document
+The Rust engine verifies source identity Trash directory ownership and same volume placement before exclusive rename
+The Trash operation is journaled and its current identity and content digest are checked during Undo
+A mode change root renewal or revoked access invalidates an earlier Trash confirmation
+Trash names carry a unique FilePilot prefix and the journal retains the original name
+Finder Put Back metadata is not created by this implementation so restore through FilePilot Undo
+An occupied original location a changed trashed file or a replaced Trash directory blocks Undo
+System Trash access must still be accepted on a real Mac
+No Full Disk Access bypass is attempted if macOS denies access
 
 ## Local semantic inspection
 
 Inspect locally reads a selected pending text file only after the user requests inspection
 Supported content is UTF8 text markdown CSV and logs up to 64 KiB
 Only a bounded two thousand character sample is sent to the local framework
-Other types use filenames only
-PDF text inspection remains available in the separate Python prototype and is not integrated into the app
+PDF files up to two MiB are inspected in a separate bundled PDFKit process
+The worker receives a bounded byte snapshot rather than a document path
+It inspects at most five pages and returns at most two thousand characters
+A four second CPU limit and five second parent timeout apply
+Timeout terminates the parser process group
+The process boundary is not an operating system sandbox and does not enforce a reliable macOS memory ceiling
+Encrypted malformed and image only documents are skipped or return no text
+OCR is not implemented
+Other file types use filenames only
 Document strings are input data and are never executed as commands
 
 The Swift bridge uses the installed Apple English sentence embedding when available
@@ -114,7 +136,12 @@ They only affect future proposals within that root
 Disabling learning prevents applying or recording corrections
 Clearing learning removes logical correction records
 Approved limited mode rules have a separate clear control
-This is deterministic local preference learning rather than neural retraining
+Remember this destination stores an explicit filename example within the authorized root
+Nearest filename token matches can suggest future destinations but always require review
+Matching only a file extension does not transfer a correction
+Explicit category preferences and limited mode rules take precedence over nearest examples
+The current lookup is bounded to one thousand examples per root
+This is local preference and nearest neighbor learning rather than neural retraining
 No data is uploaded or shared with other users
 
 ## Development builds
@@ -132,3 +159,6 @@ https://developer.apple.com/documentation/security/accessing-files-from-the-maco
 https://developer.apple.com/documentation/servicemanagement/smappservice
 https://developer.apple.com/documentation/naturallanguage/nlembedding
 https://doc.rust-lang.org/std/fs/fn.rename.html
+
+https://developer.apple.com/documentation/pdfkit/pdfdocument
+https://developer.apple.com/documentation/foundation/filemanager/searchpathdirectory

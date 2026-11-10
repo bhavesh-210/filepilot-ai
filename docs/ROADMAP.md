@@ -90,3 +90,15 @@ See IMPLEMENTATION_STATUS for the native product work still pending
 
 Production acceptance remains tracked in IMPLEMENTATION_STATUS and MAC_ACCEPTANCE
 Earlier pending lists describe the roadmap at the time and are superseded by the current implementation status
+
+## Native document and recovery workflows
+
+- [x] Add a bundled PDF inspection process with bounded input and output
+- [x] Add explicit native Trash confirmation in every autonomy mode
+- [x] Journal Trash moves and protect Trash Undo
+- [x] Record category directory setup and recover interrupted setup
+- [x] Save explicit filename examples for conservative local suggestions
+- [x] Keep nearest example suggestions behind manual review
+- [x] Honor custom destinations in Limited autonomy
+
+The production release gates remain in IMPLEMENTATION_STATUS

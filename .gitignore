@@ -43,3 +43,6 @@ htmlcov/
 **/target/
 **/node_modules/
 /desktop/dist/
+
+# Compiled local PDF parser resource
+/desktop/src-tauri/parser/

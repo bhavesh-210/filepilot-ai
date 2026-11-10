@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use filepilot_core::pdf_worker as pdf;
 use filepilot_core::{Engine, Settings};
 use notify::{RecursiveMode, Watcher};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -18,6 +19,7 @@ struct Shared {
 }
 #[cfg(target_os = "macos")]
 extern "C" {
+    fn fp_confirm_trash(source: *const libc::c_char) -> *mut libc::c_char;
     fn fp_semantic_rank(input: *const libc::c_char) -> *mut libc::c_char;
     fn fp_choose_root() -> *mut libc::c_char;
     fn fp_resolve_root(encoded: *const libc::c_char) -> *mut libc::c_char;
@@ -96,29 +98,112 @@ async fn scan(
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
-async fn semantic_suggestions(
-    proposal_id: u64,
+fn remember_example(proposal_id: u64, state: tauri::State<Shared>) -> Result<(), String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.remember_example(proposal_id)?;
+    engine.permission_epoch = epoch;
+    Ok(())
+}
+#[tauri::command]
+async fn trash_file(
+    root_id: i64,
+    relative_path: String,
+    app: tauri::AppHandle,
     state: tauri::State<'_, Shared>,
-) -> Result<serde_json::Value, String> {
+) -> Result<Option<i64>, String> {
+    let prepared = state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .prepare_trash(root_id, relative_path)?;
+    let full_path = PathBuf::from(&prepared.root_path)
+        .join(&prepared.source)
+        .to_str()
+        .ok_or("Unsupported path")?
+        .to_string();
+    let (send, recv) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        #[cfg(target_os = "macos")]
+        let result = (|| unsafe {
+            native_json(fp_confirm_trash(
+                CString::new(full_path)
+                    .map_err(|_| "Invalid source path")?
+                    .as_ptr(),
+            ))
+        })();
+        #[cfg(not(target_os = "macos"))]
+        let result: Result<serde_json::Value, String> =
+            Err("macOS Trash confirmation required".into());
+        let _ = send.send(result);
+    })
+    .map_err(|e| e.to_string())?;
+    let response = tauri::async_runtime::spawn_blocking(move || {
+        recv.recv()
+            .map_err(|_| "Trash confirmation ended".to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    if response["cancelled"] == true {
+        return Ok(None);
+    }
+    if response["confirmed"] != true {
+        return Err("Separate Trash confirmation required".into());
+    }
+    let path = PathBuf::from(
+        response["trash_root"]
+            .as_str()
+            .ok_or("System Trash root missing")?,
+    );
     let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
+    let expected = prepared.epoch;
     tauri::async_runtime::spawn_blocking(move || {
-        let (text, content_used) = engine
+        engine
             .lock()
             .map_err(|_| "Engine lock failed")?
-            .analysis_text(proposal_id)?;
-        #[cfg(target_os = "macos")]
-        let mut result = unsafe {
-            native_json(fp_semantic_rank(
-                CString::new(text).map_err(|_| "Invalid text")?.as_ptr(),
-            ))
-        }?;
-        #[cfg(not(target_os = "macos"))]
-        let mut result = serde_json::json!({"available":false,"reason":"macOS embedding required"});
-        result["content_used"] = content_used.into();
-        Ok(result)
+            .trash_guarded(prepared, path, true, || {
+                epoch.load(Ordering::SeqCst) == expected
+            })
+            .map(Some)
     })
     .await
     .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn reconcile(state: tauri::State<'_, Shared>) -> Result<(), String> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine.lock().map_err(|_| "Engine lock failed")?.recover()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn semantic_suggestions(
+    proposal_id: u64,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Shared>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.engine.clone();
+    let helper = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("filepilot-pdf");
+    tauri::async_runtime::spawn_blocking(move||{
+  let (pdf_payload,text,content_used)={let engine=engine.lock().map_err(|_|"Engine lock failed")?;
+   let payload=engine.pdf_snapshot(proposal_id)?;
+   if payload.is_some(){(payload,String::new(),true)}else{let(text,used)=engine.analysis_text(proposal_id)?;(None,text,used)}
+  };
+  let parsed=pdf_payload.map(|payload|pdf::inspect(&helper,payload)).transpose()?;
+  let text=parsed.as_ref().and_then(|value|value["text"].as_str()).unwrap_or(&text);
+  #[cfg(target_os="macos")]let mut result=unsafe{native_json(fp_semantic_rank(CString::new(text).map_err(|_|"Invalid text")?.as_ptr()))}?;
+  #[cfg(not(target_os="macos"))]let mut result=serde_json::json!({"available":false,"reason":"macOS embedding required"});
+  result["content_used"]=content_used.into();
+  if let Some(parsed)=parsed{result["pdf_inspection"]=serde_json::json!({"pages_inspected":parsed["pages_inspected"],"truncated":parsed["truncated"],"ocr":false});}
+  Ok(result)
+ }).await.map_err(|e|e.to_string())?
 }
 #[tauri::command]
 fn review_destination(
@@ -351,6 +436,9 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
 fn main() {
     let application = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            remember_example,
+            trash_file,
+            reconcile,
             semantic_suggestions,
             review_destination,
             duplicates,

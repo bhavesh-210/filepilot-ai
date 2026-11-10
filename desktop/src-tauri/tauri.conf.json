@@ -26,17 +26,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "dmg"
-    ],
+    "targets": ["app", "dmg"],
     "macOS": {
       "minimumSystemVersion": "13.0",
       "entitlements": "Entitlements.plist"
     },
-    "icon": [
-      "icons/icon.icns",
-      "icons/icon.png"
-    ]
+    "icon": ["icons/icon.icns", "icons/icon.png"],
+    "resources": {
+      "parser/filepilot-pdf": "filepilot-pdf"
+    }
   }
 }

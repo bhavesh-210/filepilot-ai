@@ -1,3 +1,13 @@
+# Native document and Trash workflows
+
+Added bounded PDFKit inspection in a separate bundled process
+Added parser timeouts input page and output limits
+Added separately confirmed system Trash actions and guarded journaled Undo
+Recorded category directory setup and recovery in the journal
+Added explicit filename examples and conservative nearest neighbor suggestions
+Fixed custom limited mode destinations and explicit preference priority
+Added tests for parser failure confirmation cancellation and old journal migration
+
 # Native safety and recovery checks
 
 Bound active folders to their selected directory identity

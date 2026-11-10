@@ -32,3 +32,12 @@ These boxes must only be checked after a person verifies the installed app
 
 Cloud provider tests and release signing must be tracked separately before using personal folders
 Do not remove macOS quarantine attributes or weaken system security to make acceptance pass
+
+- [ ] Trash always shows a separate native confirmation in every autonomy mode
+- [ ] Cancelling Trash moves nothing
+- [ ] Confirmed Trash uses the system Trash and FilePilot Undo restores the file
+- [ ] Trash Undo refuses edited files occupied original locations and replaced Trash directories
+- [ ] PDF inspection runs in the bundled helper and skips encrypted files
+- [ ] Missing helper parser failure and timeout return an error without moving files
+- [ ] Remembered examples improve suggestions only after an explicit request
+- [ ] Nearest example suggestions still require move approval in Full autonomy

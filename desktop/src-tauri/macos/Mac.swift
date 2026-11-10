@@ -83,3 +83,20 @@ public func semanticRank(_ input: UnsafePointer<CChar>) -> UnsafeMutablePointer<
     ranking.sort{($0["score"] as! Double)>($1["score"] as! Double)}
     return output(["available":true,"model":"Apple English sentence embedding","revision":embedding.revision,"ranking":Array(ranking.prefix(3)),"scores_are_probabilities":false,"review_required":true])
 }
+
+@_cdecl("fp_confirm_trash")
+public func confirmTrash(_ source:UnsafePointer<CChar>)->UnsafeMutablePointer<CChar>? {
+    let path=String(cString:source)
+    let alert=NSAlert()
+    alert.messageText="Move this file to Trash"
+    alert.informativeText=path+"\nThis requires separate confirmation in every autonomy mode"
+    alert.alertStyle = .warning
+    alert.addButton(withTitle:"Cancel")
+    alert.addButton(withTitle:"Move to Trash")
+    guard alert.runModal() == .alertSecondButtonReturn else {return output(["cancelled":true])}
+    do {
+        let sourceURL=URL(fileURLWithPath:path)
+        let trash=try FileManager.default.url(for:.trashDirectory,in:.userDomainMask,appropriateFor:sourceURL,create:true)
+        return output(["confirmed":true,"trash_root":trash.resolvingSymlinksInPath().path])
+    } catch {return output(["error":"System Trash is unavailable no file was moved"])}
+}

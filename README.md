@@ -6,8 +6,9 @@ I am building an offline macOS file organizer with a React and Tauri desktop app
 The current native build is a development alpha rather than a production release
 Use disposable test folders until the Mac acceptance and security checks pass
 
-The app includes folder selection previews three autonomy modes reversible moves whitespace renaming local correction controls duplicate analysis and a background reconciliation loop
+The app includes folder selection previews three autonomy modes reversible moves whitespace renaming local correction controls filename examples duplicate analysis separately confirmed Trash and a background reconciliation loop
 Optional semantic suggestions use an installed macOS English model and require explicit review
+Text inspection includes a bounded separate process for PDFs
 
 See [native app details](docs/NATIVE_APP.md) [implementation status](docs/IMPLEMENTATION_STATUS.md) and [Mac acceptance](docs/MAC_ACCEPTANCE.md)
 
