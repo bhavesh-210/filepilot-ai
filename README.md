@@ -10,7 +10,7 @@ The app includes folder selection previews three autonomy modes reversible moves
 Optional semantic suggestions use an installed macOS English model and require explicit review
 Text inspection includes a bounded separate process for PDFs
 
-See [native app details](docs/NATIVE_APP.md) [implementation status](docs/IMPLEMENTATION_STATUS.md) and [Mac acceptance](docs/MAC_ACCEPTANCE.md)
+See [GUI testing steps](docs/INSTALL.md) and [native app details](docs/NATIVE_APP.md) [implementation status](docs/IMPLEMENTATION_STATUS.md) and [Mac acceptance](docs/MAC_ACCEPTANCE.md)
 
 The original Python scanner and experiments remain available as separate read only research tools
 
