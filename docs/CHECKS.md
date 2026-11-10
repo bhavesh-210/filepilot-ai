@@ -133,5 +133,7 @@ The native core now contains 58 tests in total
 
 The native core contains 69 tests including 11 collection scenarios
 Collection tests cover read only preview existing nested destinations title suggestions invalid paths duplicate filenames collisions changed sources permissions project and symlink boundaries cancellation and individually undoable partial completion
-The React suite contains 17 synthetic workflows including preview before confirmation adding to existing folders editing a collection and cancelled selected file Trash
+The React suite contains 18 synthetic workflows including preview before confirmation adding to existing folders editing a collection and cancelled selected file Trash
 Native permission dialogs and Finder results still require manual Mac acceptance
+
+Collection interruption messages count only verified moves and direct the user to Activity for ambiguous journal records

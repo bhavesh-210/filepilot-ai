@@ -290,7 +290,7 @@ export function Collections({
                   await onChanged();
                   onMessage(
                     result.errors.length
-                      ? `${result.operations.length} files moved before work stopped ${result.errors.join(" ")} Check Activity before trying again`
+                      ? `${result.operations.length} moves verified before work stopped ${result.errors.join(" ")} Check Activity before trying again`
                       : `${result.operations.length} files added to ${plan.folder} use Activity to undo each move`,
                   );
                 })

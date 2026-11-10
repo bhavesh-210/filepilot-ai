@@ -30,6 +30,7 @@ window.__TAURI_INTERNALS__={
   if(command==='collection_title')return 'Important study files';
   if(command==='plan_collection'){window.collectionPlan={token:99,root_id:1,folder:args.folder,create_folder:args.createFolder,proposals:[{id:9,source:'lecture.txt',destination:args.folder+'/lecture.txt'}]};return window.collectionPlan;}
   if(command==='cancel_collection'){window.collectionPlan=null;return null;}
+  if(command==='apply_collection'&&window.testCollectionFailure)return {operations:[],errors:['Interrupted change needs reconciliation']};
   if(command==='apply_collection'){window.testHistory=[{id:2,root_id:1,source:'lecture.txt',destination:window.collectionPlan.folder+'/lecture.txt',state:'applied',kind:'move'}];return {operations:[2],errors:[]};}
   if(command==='trash_file')return null;
   if(command==='apply'){window.testHistory=[{id:1,root_id:1,source:'lecture.txt',destination:'College/lecture.txt',state:'applied',kind:'move'}];return 1;}
@@ -181,6 +182,14 @@ class DesktopBrowserTests(unittest.TestCase):
         self.assertTrue(page.get_by_label('Select lecture.txt',exact=True).is_checked())
         self.assertNotIn('apply_collection',page.evaluate('window.testCalls'))
         self.assertEqual(page.evaluate('window.testHistory.length'),0)
+    def test_collection_interruption_does_not_claim_no_files_changed(self):
+        page=self.open();self.nav(page,'Collections');page.get_by_label('Select lecture.txt',exact=True).check()
+        page.get_by_role('button',name='Preview collection',exact=True).click()
+        page.get_by_role('button',name='Confirm collection',exact=True).wait_for()
+        page.evaluate('window.testCollectionFailure=true')
+        page.get_by_role('button',name='Confirm collection',exact=True).click()
+        page.get_by_text('0 moves verified before work stopped Interrupted change needs reconciliation Check Activity before trying again',exact=True).wait_for()
+        self.assertFalse(self.errors,self.errors)
     def test_visual_snapshots(self):
         directory=ROOT/'desktop/test-results';directory.mkdir(exist_ok=True)
         page=self.open();page.screenshot(path=str(directory/'overview.png'),full_page=True)
