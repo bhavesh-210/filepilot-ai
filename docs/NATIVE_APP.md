@@ -246,3 +246,11 @@ macOS permission and installed app identity determine actual delivery
 Real permission prompts click activation delivery and sleep wake acceptance remain unchecked until tested on a Mac
 
 https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/requestauthorization(options:completionhandler:)
+
+## Main locations update
+
+See [workspace behavior and limits](WORKSPACE.md) for approved routing cross location transfers and the two item focus
+The core suite now has 115 passing synthetic tests locally
+The React suite includes 31 workflows and requires the current browser CI result
+Real Mac acceptance must check both grants folder picker renewals route previews per location counts file and folder transfer Undo and sleep wake reconciliation
+Use disposable sibling test roots for these checks

@@ -92,3 +92,11 @@ Changing a disposable file may make it need review again
 Preferences can clear Keep here decisions
 Optionally request review notifications and check the actual macOS system permission and delivery
 Image and unsupported formats must report the limitation rather than fabricating a summary
+
+## Main locations update
+
+See [workspace behavior and limits](WORKSPACE.md) for approved routing cross location transfers and the two item focus
+The core suite now has 115 passing synthetic tests locally
+The React suite includes 31 workflows and requires the current browser CI result
+Real Mac acceptance must check both grants folder picker renewals route previews per location counts file and folder transfer Undo and sleep wake reconciliation
+Use disposable sibling test roots for these checks

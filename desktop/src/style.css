@@ -904,3 +904,69 @@ th {
     margin-top: 10px;
   }
 }
+.directory-nav {
+  margin-top: 18px;
+  overflow: auto;
+}
+.directory-nav .workspace-label {
+  margin: 15px 8px 10px;
+}
+.directory-nav .nav-item {
+  width: 100%;
+  font-size: 12px;
+}
+.directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 15px;
+  margin-top: 22px;
+}
+.directory-card {
+  background: #1c2b2e;
+  border: 1px solid #35484b;
+  border-radius: 13px;
+  padding: 20px;
+  overflow-wrap: anywhere;
+}
+.directory-card h3 {
+  margin-top: 15px;
+}
+.directory-card p {
+  font-size: 12px;
+}
+.directory-card button {
+  margin-top: 15px;
+  font-size: 12px;
+}
+.transfer-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+}
+.focus-notice {
+  border: 1px solid #456454;
+  background: #20332b;
+  border-radius: 11px;
+  padding: 16px;
+  margin-top: 20px;
+}
+.focus-notice b {
+  font-size: 13px;
+}
+.focus-notice p {
+  font-size: 12px;
+}
+.recommended {
+  margin-left: 8px;
+}
+.directory-nav small {
+  padding: 0 8px;
+}
+@media (max-width: 650px) {
+  .transfer-form {
+    grid-template-columns: 1fr;
+  }
+  .directory-nav {
+    display: none;
+  }
+}

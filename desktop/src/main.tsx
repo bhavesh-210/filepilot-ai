@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Workspace, TransferSeed } from "./components/Workspace";
 import { Setup } from "./components/Setup";
 import { Preferences } from "./components/Preferences";
 import { Collections } from "./components/Collections";
@@ -16,6 +17,9 @@ import {
 } from "./types";
 import "./style.css";
 const initial: Snapshot = {
+  directories: [],
+  routes: [],
+  transfers: [],
   settings: {
     mode: "full",
     rename: true,
@@ -32,6 +36,7 @@ const initial: Snapshot = {
   notice: "",
 };
 type Page =
+  | "workspace"
   | "overview"
   | "review"
   | "collections"
@@ -41,6 +46,7 @@ type Page =
 const pages: { id: Page; label: string; symbol: string }[] = [
   { id: "overview", label: "Overview", symbol: "◫" },
   { id: "review", label: "Review inbox", symbol: "▤" },
+  { id: "workspace", label: "Main locations", symbol: "◫" },
   { id: "collections", label: "Collections", symbol: "▱" },
   { id: "folders", label: "Your folders", symbol: "▱" },
   { id: "activity", label: "Activity", symbol: "↶" },
@@ -50,6 +56,9 @@ function App() {
   const native = "__TAURI_INTERNALS__" in window;
   const refreshSequence = useRef(0);
   const [startup, setStartup] = useState(true);
+  const [reviewAll, setReviewAll] = useState(true);
+  const [directoryFocus, setDirectoryFocus] = useState<number | null>(null);
+  const [transferSeed, setTransferSeed] = useState<TransferSeed | null>(null);
   const [collectionSeed, setCollectionSeed] = useState<{
     rootId: number;
     source: string;
@@ -74,6 +83,9 @@ function App() {
         ...next,
         preferences: next.preferences || initial.preferences,
         inventories: next.inventories || [],
+        directories: next.directories || [],
+        routes: next.routes || [],
+        transfers: next.transfers || [],
       });
     }
     setLoaded(true);
@@ -120,6 +132,36 @@ function App() {
   const root =
     state.roots.find((r) => r.id === selected) || active[0] || state.roots[0];
   const inventory = state.inventories.find((i) => i.root_id === root?.id);
+  const reviewInventory =
+    reviewAll && state.inventories.length
+      ? {
+          root_id: 0,
+          files: state.inventories.reduce((n, i) => n + i.files, 0),
+          folders: [],
+          items: [],
+          protected: state.inventories.reduce((n, i) => n + i.protected, 0),
+          errors: state.inventories.flatMap((i) => i.errors),
+          proposals: state.inventories
+            .flatMap((i) => i.proposals)
+            .sort(
+              (a, b) =>
+                Number(a.blocked) - Number(b.blocked) ||
+                a.source.localeCompare(b.source),
+            ),
+        }
+      : inventory;
+  function transfer(rootId: number, source: string, category?: string) {
+    const rule = state.routes.find((r) => r.category === category);
+    setTransferSeed({
+      rootId,
+      source,
+      category,
+      targetRootId: rule?.target_root_id,
+      folder: rule?.folder,
+    });
+    setDirectoryFocus(null);
+    setPage("workspace");
+  }
   const pending = state.inventories.reduce((n, i) => n + i.proposals.length, 0);
   const applied = state.history.filter(
     (op) => op.state === "applied" && op.kind !== "mkdir",
@@ -246,10 +288,40 @@ function App() {
             >
               <span aria-hidden="true">{item.symbol}</span>
               {item.label}
-              {item.id === "review" && pending > 0 && <b>{pending}</b>}
+              {item.id === "review" && pending > 0 && (
+                <b>{Math.min(pending, 2)} focus</b>
+              )}
             </button>
           ))}
         </nav>
+        <div className="directory-nav">
+          <div className="workspace-label">MAIN DIRECTORIES</div>
+          {state.directories.map((d) => (
+            <button
+              key={d.root_id}
+              className={
+                directoryFocus === d.root_id && page === "workspace"
+                  ? "nav-item active"
+                  : "nav-item"
+              }
+              onClick={() => {
+                setDirectoryFocus(d.root_id);
+                setTransferSeed(null);
+                setPage("workspace");
+              }}
+            >
+              <span>▱</span>
+              {folderName(
+                state.roots.find((r) => r.id === d.root_id)?.path ||
+                  d.directory,
+              )}
+              <b>{d.files}</b>
+            </button>
+          ))}
+          {!state.directories.length && (
+            <small>Add Desktop Downloads and Documents in Main locations</small>
+          )}
+        </div>
         <div className="sidebar-bottom">
           <div className="local-status">
             <i />
@@ -377,6 +449,17 @@ function App() {
                     <span className="orbit two">✧</span>
                   </div>
                 </section>
+                <div className="actions">
+                  <button
+                    onClick={() => {
+                      setDirectoryFocus(null);
+                      setTransferSeed(null);
+                      setPage("workspace");
+                    }}
+                  >
+                    See main directory stats and routing
+                  </button>
+                </div>
                 <div className="stats">
                   <div>
                     <small>FOLDERS COVERED</small>
@@ -384,9 +467,13 @@ function App() {
                     <span>With your permission</span>
                   </div>
                   <div>
-                    <small>WAITING FOR YOU</small>
-                    <b>{pending}</b>
-                    <span>Suggestions to review</span>
+                    <small>IN FOCUS</small>
+                    <b>{Math.min(pending, 2)}</b>
+                    <span>
+                      {pending} waiting in total
+                      <br />
+                      {Math.max(0, pending - 2)} others safely waiting
+                    </span>
                   </div>
                   <div>
                     <small>REVERSIBLE CHANGES</small>
@@ -453,13 +540,16 @@ function App() {
                     <select
                       aria-label="Review folder"
                       disabled={busy}
-                      value={root?.id || ""}
+                      value={reviewAll ? "all" : root?.id || ""}
                       onChange={(e) => {
-                        setSelected(Number(e.target.value));
+                        setReviewAll(e.target.value === "all");
+                        if (e.target.value !== "all")
+                          setSelected(Number(e.target.value));
                         setDuplicateGroups([]);
                       }}
                     >
-                      {state.roots.map((r) => (
+                      <option value="all">All active locations</option>
+                      {active.map((r) => (
                         <option key={r.id} value={r.id}>
                           {folderName(r.path)}
                         </option>
@@ -468,26 +558,34 @@ function App() {
                   </label>
                   <button
                     disabled={busy || !root?.active || !native}
-                    onClick={() => task(rescan)}
+                    onClick={() =>
+                      task(async () => {
+                        if (reviewAll) await invoke("scan_all");
+                        else await rescan();
+                      })
+                    }
                   >
                     Refresh now
                   </button>
                 </div>
-                {inventory ? (
+                {reviewInventory ? (
                   <Review
-                    key={inventory.root_id}
-                    inventory={inventory}
+                    key={reviewInventory.root_id}
+                    inventory={reviewInventory}
+                    roots={state.roots}
+                    routes={state.routes}
+                    inventories={state.inventories}
+                    onTransfer={transfer}
                     busy={busy}
                     learn={state.settings.personalization}
                     trash={state.settings.trash_proposals}
                     onTask={task}
                     onMessage={setMessage}
                     onChanged={refresh}
-                    onCollection={(source, title) => {
-                      if (root) {
-                        setCollectionSeed({ rootId: root.id, source, title });
-                        setPage("collections");
-                      }
+                    onCollection={(source, title, rootId) => {
+                      setSelected(rootId);
+                      setCollectionSeed({ rootId, source, title });
+                      setPage("collections");
                     }}
                   />
                 ) : (
@@ -506,6 +604,30 @@ function App() {
                   </div>
                 )}
               </section>
+            )}
+            {page === "workspace" && (
+              <Workspace
+                key={`${transferSeed?.rootId || "workspace"}:${transferSeed?.source || ""}`}
+                state={state}
+                disabled={busy || !native}
+                seed={transferSeed}
+                focus={directoryFocus}
+                onChoose={() =>
+                  task(async () => {
+                    await choose();
+                    setPage("overview");
+                  })
+                }
+                onTask={task}
+                onMessage={setMessage}
+                onChanged={refresh}
+                onFocus={setDirectoryFocus}
+                onReview={(id) => {
+                  setSelected(id);
+                  setReviewAll(false);
+                  setPage("review");
+                }}
+              />
             )}
             {page === "collections" && (
               <>
@@ -742,8 +864,11 @@ function App() {
                             : folderName(op.source)}
                         </b>
                         <small>
-                          {op.source && `${op.source} → `}
-                          {op.kind === "trash" ? "Trash" : op.destination}
+                          {op.source &&
+                            `${folderName(state.roots.find((r) => r.id === op.root_id)?.path || "Location")} / ${op.source} → `}
+                          {op.kind === "trash"
+                            ? "Trash"
+                            : `${folderName(state.roots.find((r) => r.id === (op.destination_root_id || op.root_id))?.path || "Location")} / ${op.destination}`}
                         </small>
                         <span className="pill">
                           {op.state.replaceAll("_", " ")}
@@ -755,6 +880,7 @@ function App() {
                           onClick={() =>
                             task(async () => {
                               await invoke("undo", { operationId: op.id });
+                              await invoke("scan_all");
                               setMessage(
                                 "Operation undone without overwriting another file",
                               );

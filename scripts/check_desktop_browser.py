@@ -11,15 +11,27 @@ MOCK = '''
 window.testCalls=[];
 window.testSettings={mode:'full',rename:true,monitoring:true,personalization:true,trash_proposals:true,review_notifications:false,revision:0};
 window.testHistory=[];
-window.testFolder={id:1,path:'/synthetic/demo',active:true,initial_reviewed:!window.testSetup};
-window.inventory=()=>({root_id:1,files:1,folders:['College'],items:['lecture.txt'],protected:1,errors:[],proposals:window.testKept||window.testExpired||window.testHistory.some(o=>o.state==='applied')?[]:[{id:7,root_id:1,source:window.syntheticSource||'lecture.txt',destination:'College/lecture.txt',category:'Education',reason:'Reuse an existing category folder',blocked:false,rename:false,certain:true}]});
+window.testFolder={id:1,path:window.testMulti?'/synthetic/Downloads':'/synthetic/demo',active:true,initial_reviewed:!window.testSetup};
+window.baseInventory=()=>({root_id:1,files:1,folders:['College'],items:['lecture.txt'],protected:1,errors:[],proposals:window.testKept||window.testExpired||window.testHistory.some(o=>o.state==='applied')?[]:[{id:7,root_id:1,source:window.syntheticSource||'lecture.txt',destination:'College/lecture.txt',category:'Education',reason:'Reuse an existing category folder',blocked:false,rename:false,certain:true}]});
+window.testRoutes=[];
+window.inventory=()=>{const value=window.baseInventory();if(window.testMany&&!window.testKept&&!window.testExpired)value.proposals=Array.from({length:5},(_,i)=>({...value.proposals[0],id:7+i,source:'document_'+i+'.txt'}));return value};
+window.testRoots=()=>window.testMulti?[window.testFolder,{id:2,path:'/synthetic/Documents',active:true,initial_reviewed:true}]:[window.testFolder];
+window.testInventories=()=>window.testMulti?[window.inventory(),{root_id:2,files:0,folders:['Finance'],items:[],protected:0,errors:[],proposals:[]}]:[window.inventory()];
 window.__TAURI_INTERNALS__={
  transformCallback:(handler)=>{window.testTauriEvent=handler;return 1;},unregisterCallback:()=>{},
  invoke:async(command,args)=>{
   window.testCalls.push(command);
   if(command==='plugin:event|listen')return 1;
   if(command==='plugin:event|unlisten')return null;
-  if(command==='snapshot')return {settings:window.testSettings,preferences:{reuse_existing:true},roots:[window.testFolder],inventories:window.testSetup&&!window.testPrepared?[]:[window.inventory()],history:window.testHistory,notice:''};
+  if(command==='snapshot')return {settings:window.testSettings,preferences:{reuse_existing:true},roots:window.testRoots(),inventories:window.testSetup&&!window.testPrepared?[]:window.testInventories(),directories:window.testRoots().map(r=>({root_id:r.id,directory:window.testMulti?(r.id===1?'Downloads':'Documents'):'Other locations',files:r.id===1?1:0,folders:r.id===1?1:1,pending:r.id===1?window.inventory().proposals.length:0,protected:r.id===1?1:0,received:r.id===2&&window.testHistory.some(o=>o.kind==='transfer'&&o.state==='applied')?1:0,sent:r.id===1&&window.testHistory.some(o=>o.kind==='transfer'&&o.state==='applied')?1:0,applied:window.testHistory.length,complete:true})),routes:window.testRoutes,transfers:[],history:window.testHistory,notice:''};
+  if(command==='scan_all')return null;
+  if(command==='save_route'){window.testRoutes=window.testRoutes.filter(r=>r.category!==args.route.category).concat([args.route]);return null;}
+  if(command==='clear_routes'){window.testRoutes=[];return null;}
+  if(command==='prepare_folder_transfer'){window.testTransfer={token:102,folder_transfer:true,files_count:1,folders_count:1,bytes:24,source_root_id:args.sourceRootId,target_root_id:args.targetRootId,source:args.source,destination:(args.folder?args.folder+'/':'')+args.source.split('/').pop(),category:'Collection',reason:'Explicit folder move',automatic:false};return window.testTransfer;}
+  if(command==='cancel_folder_transfer')return null;
+  if(command==='apply_folder_transfer'){window.testHistory=[{id:5,root_id:window.testTransfer.source_root_id,destination_root_id:window.testTransfer.target_root_id,source:window.testTransfer.source,destination:window.testTransfer.destination,state:'applied',kind:'folder_transfer'}];return 5;}
+  if(command==='prepare_transfer'){window.testTransfer={token:101,source_root_id:args.sourceRootId,target_root_id:args.targetRootId,source:args.source,destination:(args.folder?args.folder+'/':'')+args.source.split('/').pop(),category:'Education',reason:'Explicit move between approved locations',automatic:false};return window.testTransfer;}
+  if(command==='apply_transfer'){window.testHistory=[{id:4,root_id:window.testTransfer.source_root_id,destination_root_id:window.testTransfer.target_root_id,source:window.testTransfer.source,destination:window.testTransfer.destination,state:'applied',kind:'transfer'}];return 4;}
   if(command==='choose_folders')return {ids:[1],errors:[],cancelled:false};
   if(command==='prepare_setup'){window.testPrepared=true;return {token:42,inventory:window.inventory(),create_folders:[]};}
   if(command==='finish_setup'){if(args.token!==42)throw 'Wrong token';window.testFolder.initial_reviewed=true;return null;}
@@ -59,10 +71,10 @@ class DesktopBrowserTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.browser.close();cls.runtime.stop();cls.server.shutdown();cls.server.server_close()
-    def open(self,native=True,setup=False):
+    def open(self,native=True,setup=False,multi=False,many=False):
         context=self.browser.new_context(viewport={'width':1440,'height':1050})
         self.addCleanup(context.close)
-        if native:context.add_init_script(('window.testSetup=true;' if setup else '')+MOCK)
+        if native:context.add_init_script(('window.testSetup=true;' if setup else '')+('window.testMulti=true;' if multi else '')+('window.testMany=true;' if many else '')+MOCK)
         page=context.new_page();self.errors=[]
         page.on('pageerror',lambda e:self.errors.append(str(e)))
         page.goto(f'http://127.0.0.1:{self.server.server_port}')
@@ -233,12 +245,71 @@ class DesktopBrowserTests(unittest.TestCase):
         page.get_by_label('Notify me when files need attention').check()
         page.get_by_text('Preferences saved pending proposals will be refreshed',exact=True).wait_for()
         self.assertIn('request_notifications',page.evaluate('window.testCalls'))
+    def test_review_focus_is_two_without_hiding_the_total(self):
+        page=self.open(many=True);self.nav(page,'Review inbox')
+        page.get_by_text('5 files are waiting in total',exact=True).wait_for()
+        self.assertEqual(page.locator('article.review-card').count(),2)
+        page.get_by_role('button',name='View all waiting files',exact=True).click()
+        self.assertEqual(page.locator('article.review-card').count(),5)
+        self.assertNotIn('apply',page.evaluate('window.testCalls'))
+    def test_best_local_folder_has_recommended_label(self):
+        page=self.open();self.review(page);page.get_by_role('button',name='Summarise',exact=True).click()
+        page.get_by_text('Recommended',exact=True).wait_for()
+        self.assertNotIn('apply',page.evaluate('window.testCalls'))
+    def test_main_directories_have_independent_stats(self):
+        page=self.open(multi=True);self.nav(page,'Main locations')
+        self.assertEqual(page.locator('article.directory-card').count(),2)
+        page.get_by_role('heading',name='Downloads',exact=True).wait_for()
+        page.get_by_role('heading',name='Documents',exact=True).wait_for()
+        self.assertNotIn('apply_transfer',page.evaluate('window.testCalls'))
+    def test_transfer_preview_then_confirm_and_undo(self):
+        page=self.open(multi=True);self.nav(page,'Main locations')
+        page.get_by_label('Transfer source location').select_option('1')
+        page.get_by_label('Transfer source file').select_option('lecture.txt')
+        page.get_by_label('Transfer target location').select_option('2')
+        page.get_by_label('Transfer destination folder').select_option('Finance')
+        page.get_by_role('button',name='Preview transfer',exact=True).click()
+        page.get_by_role('button',name='Confirm transfer',exact=True).wait_for()
+        self.assertNotIn('apply_transfer',page.evaluate('window.testCalls'))
+        page.get_by_role('button',name='Confirm transfer',exact=True).click()
+        page.get_by_text('Transfer recorded use Activity to undo',exact=True).wait_for()
+        self.nav(page,'Activity');page.get_by_role('button',name='Undo',exact=True).click()
+        page.get_by_text('undone',exact=True).wait_for()
+        self.assertFalse(self.errors,self.errors)
+    def test_main_layout_is_reviewed_before_rules_are_saved(self):
+        page=self.open(multi=True);self.nav(page,'Main locations')
+        page.get_by_role('button',name='Preview recommended layout',exact=True).click()
+        page.get_by_role('button',name='Approve this routing layout',exact=True).wait_for()
+        self.assertNotIn('save_route',page.evaluate('window.testCalls'))
+        page.get_by_role('button',name='Approve this routing layout',exact=True).click()
+        page.get_by_text('7 routing rules saved matching files will follow your autonomy mode',exact=True).wait_for()
+        self.assertEqual(page.evaluate('window.testRoutes.length'),7)
+        self.assertNotIn('apply_transfer',page.evaluate('window.testCalls'))
+    def test_all_locations_review_scope_is_default(self):
+        page=self.open(multi=True);self.nav(page,'Review inbox')
+        self.assertEqual(page.get_by_label('Review folder',exact=True).input_value(),'all')
+        page.get_by_label('Review folder',exact=True).select_option('2')
+        page.get_by_role('heading',name='Nothing waiting here').wait_for()
+    def test_whole_folder_transfer_requires_its_own_preview(self):
+        page=self.open(multi=True);self.nav(page,'Main locations')
+        page.get_by_label('Transfer item type').select_option('folder')
+        page.get_by_label('Transfer source location').select_option('1')
+        page.get_by_label('Transfer source file').select_option('College')
+        page.get_by_label('Transfer target location').select_option('2')
+        page.get_by_role('button',name='Preview transfer',exact=True).click()
+        page.get_by_role('button',name='Confirm transfer',exact=True).wait_for()
+        self.assertNotIn('apply_folder_transfer',page.evaluate('window.testCalls'))
+        page.get_by_role('button',name='Confirm transfer',exact=True).click()
+        page.get_by_text('Transfer recorded use Activity to undo',exact=True).wait_for()
+        self.assertIn('apply_folder_transfer',page.evaluate('window.testCalls'))
+        self.nav(page,'Activity');self.assertTrue(page.get_by_role('button',name='Undo',exact=True).is_enabled())
     def test_visual_snapshots(self):
         directory=ROOT/'desktop/test-results';directory.mkdir(exist_ok=True)
         page=self.open();page.screenshot(path=str(directory/'overview.png'),full_page=True)
         self.review(page);page.screenshot(path=str(directory/'review.png'),full_page=True)
         page.get_by_role('button',name='Summarise',exact=True).click();page.get_by_text('The invoice payment amount is due on Friday',exact=True).wait_for();page.screenshot(path=str(directory/'summary.png'),full_page=True)
         self.nav(page,'Collections');page.screenshot(path=str(directory/'collections.png'),full_page=True)
+        page=self.open(multi=True);self.nav(page,'Main locations');page.screenshot(path=str(directory/'workspace.png'),full_page=True)
         page=self.open(setup=True);page.screenshot(path=str(directory/'setup.png'),full_page=True)
         self.assertFalse(self.errors,self.errors)
 if __name__=='__main__':unittest.main(verbosity=2)

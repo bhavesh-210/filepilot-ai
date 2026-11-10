@@ -46,8 +46,12 @@ export type Operation = {
   destination: string;
   state: string;
   kind: string;
+  destination_root_id?: number | null;
 };
 export type Snapshot = {
+  directories: DirectoryStats[];
+  routes: Route[];
+  transfers: TransferPlan[];
   settings: Settings;
   preferences: { reuse_existing: boolean };
   roots: Folder[];
@@ -67,3 +71,35 @@ export const categories = [
 ];
 export const folderName = (path: string) =>
   path.split("/").filter(Boolean).at(-1) || path;
+export type Route = {
+  category: string;
+  target_root_id: number;
+  folder: string;
+  content: boolean;
+};
+export type TransferPlan = {
+  folder_transfer?: boolean;
+  files_count?: number;
+  folders_count?: number;
+  bytes?: number;
+  token: number;
+  source_root_id: number;
+  target_root_id: number;
+  source: string;
+  destination: string;
+  category: string;
+  reason: string;
+  automatic: boolean;
+};
+export type DirectoryStats = {
+  root_id: number;
+  directory: string;
+  files: number;
+  folders: number;
+  pending: number;
+  protected: number;
+  received: number;
+  sent: number;
+  applied: number;
+  complete: boolean;
+};

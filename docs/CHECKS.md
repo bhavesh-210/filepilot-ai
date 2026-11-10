@@ -154,3 +154,11 @@ It produced a content overview of Archive Unsorted 2024 scan_001 and ranked the 
 This synthetic diagnostic is not an independent model accuracy benchmark
 
 An explicit reviewed destination is retained for the unchanged file so a manually organised collection is not repeatedly flagged
+
+## Main locations update
+
+See [workspace behavior and limits](WORKSPACE.md) for approved routing cross location transfers and the two item focus
+The core suite now has 115 passing synthetic tests locally
+The React suite includes 31 workflows and requires the current browser CI result
+Real Mac acceptance must check both grants folder picker renewals route previews per location counts file and folder transfer Undo and sleep wake reconciliation
+Use disposable sibling test roots for these checks

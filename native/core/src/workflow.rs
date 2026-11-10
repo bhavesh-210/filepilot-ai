@@ -143,6 +143,9 @@ impl Engine {
         let root = self.opened_root(inventory.root_id)?;
         let mut categories = Vec::new();
         for p in &inventory.proposals {
+            if self.route_for_proposal(p)?.is_some() {
+                continue;
+            }
             // Only known stable category proposals may create a missing canonical folder
             if p.certain
                 && p.reason == "Create or choose an authorized category folder"

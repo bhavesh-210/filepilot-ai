@@ -1,3 +1,14 @@
+# Main locations and approved routing
+
+Added per directory workspace cards and an all locations review inbox
+Focused two review cards while keeping the full queue visible
+Added Recommended labels and previewed reusable category routes
+Added bounded opt in complete short text and PDF keyword routing
+Added journaled same volume transfers between approved locations
+Added explicit whole ordinary folder previews with preserved hierarchy and guarded Undo
+Kept Undo destinations in place instead of immediately organising them again
+Added transfer crash recovery permission cancellation and transaction failure tests
+
 # Recursive review and local summaries
 
 Analysed ordinary nested files instead of skipping existing collections entirely

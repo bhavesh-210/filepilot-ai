@@ -18,6 +18,11 @@ Text inspection includes a bounded separate process for PDFs
 
 See [GUI testing steps](docs/INSTALL.md) and [native app details](docs/NATIVE_APP.md) [implementation status](docs/IMPLEMENTATION_STATUS.md) and [Mac acceptance](docs/MAC_ACCEPTANCE.md)
 
+Main locations now groups approved directories with separate stats and previewed cross location file and ordinary folder transfers
+The review inbox focuses on two items while retaining the full waiting count
+Explicit category routing rules can reduce repeated decisions across all approved locations
+See [workspace behavior and limits](docs/WORKSPACE.md)
+
 The original Python scanner and experiments remain available as separate read only research tools
 
 ## Earlier prototype documentation

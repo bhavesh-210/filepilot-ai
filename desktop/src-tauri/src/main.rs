@@ -47,7 +47,7 @@ fn snapshot(state: tauri::State<Shared>) -> Result<serde_json::Value, String> {
     let engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
     let roots=engine.saved_roots()?.iter().map(|r|serde_json::json!({"id":r.id,"path":r.path,"initial_reviewed":r.initial_reviewed,"active":engine.roots.contains_key(&r.id)})).collect::<Vec<_>>();
     Ok(
-        serde_json::json!({"preferences":engine.preferences()?,"inventories":engine.inventories(),"settings":engine.settings,"roots":roots,"history":engine.history()?,"notice":*state.notice.lock().map_err(|_|"Notice lock failed")?}),
+        serde_json::json!({"directories":engine.directory_stats()?,"routes":engine.routes()?,"transfers":engine.transfer_plans(),"preferences":engine.preferences()?,"inventories":engine.inventories(),"settings":engine.settings,"roots":roots,"history":engine.history()?,"notice":*state.notice.lock().map_err(|_|"Notice lock failed")?}),
     )
 }
 #[tauri::command]
@@ -176,6 +176,121 @@ async fn apply_collection(
         let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
         let expected = engine.permission_epoch;
         engine.apply_collection(root_id, token, || epoch.load(Ordering::SeqCst) == expected)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn scan_all(app: tauri::AppHandle, state: tauri::State<'_, Shared>) -> Result<(), String> {
+    let engine = state.engine.clone();
+    let helper = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("filepilot-pdf");
+    let notice = state.notice.clone();
+    let shared_engine = engine.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
+        let ids = engine.roots.keys().copied().collect::<Vec<_>>();
+        let mut errors = Vec::new();
+        for id in ids {
+            if let Err(error) = engine.scan_background(id) {
+                errors.push(format!("Location {id} needs attention {error}"));
+            }
+        }
+        *notice.lock().map_err(|_| "Notice lock failed")? = errors.join("\n");
+        drop(engine);
+        plan_workspace(&shared_engine, &helper)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+fn save_route(
+    route: filepilot_core::Route,
+    create: bool,
+    state: tauri::State<Shared>,
+) -> Result<(), String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.set_route(route, create, || {
+        state.epoch.load(Ordering::SeqCst) == epoch
+    })?;
+    engine.permission_epoch = epoch;
+    Ok(())
+}
+#[tauri::command]
+fn clear_routes(state: tauri::State<Shared>) -> Result<(), String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.clear_routes()?;
+    engine.permission_epoch = epoch;
+    Ok(())
+}
+#[tauri::command]
+fn prepare_transfer(
+    source_root_id: i64,
+    source: String,
+    target_root_id: i64,
+    folder: String,
+    state: tauri::State<Shared>,
+) -> Result<filepilot_core::TransferPlan, String> {
+    state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .prepare_transfer(source_root_id, source, target_root_id, folder)
+}
+#[tauri::command]
+async fn apply_transfer(token: u64, state: tauri::State<'_, Shared>) -> Result<i64, String> {
+    let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
+        let expected = engine.permission_epoch;
+        engine.apply_transfer(token, true, || epoch.load(Ordering::SeqCst) == expected)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn prepare_folder_transfer(
+    source_root_id: i64,
+    source: String,
+    target_root_id: i64,
+    folder: String,
+    state: tauri::State<'_, Shared>,
+) -> Result<filepilot_core::FolderTransferPlan, String> {
+    let engine = state.engine.clone();
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
+        let result = engine.prepare_folder_transfer(source_root_id, source, target_root_id, folder);
+        engine.permission_epoch = epoch;
+        result
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+fn cancel_folder_transfer(token: u64, state: tauri::State<Shared>) -> Result<(), String> {
+    state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .cancel_folder_transfer(token);
+    Ok(())
+}
+#[tauri::command]
+async fn apply_folder_transfer(token: u64, state: tauri::State<'_, Shared>) -> Result<i64, String> {
+    let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
+        let expected = engine.permission_epoch;
+        engine.apply_folder_transfer(token, || epoch.load(Ordering::SeqCst) == expected)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -507,6 +622,46 @@ async fn login_item(enabled: bool, app: tauri::AppHandle) -> Result<serde_json::
     .await
     .map_err(|e| e.to_string())?
 }
+fn plan_workspace(
+    engine: &Arc<Mutex<Engine>>,
+    helper: &std::path::Path,
+) -> Result<Vec<filepilot_core::TransferPlan>, String> {
+    let mut plans = engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .plan_routes()?;
+    let candidates = engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .pdf_route_candidates()?;
+    for id in candidates {
+        let payload = engine
+            .lock()
+            .map_err(|_| "Engine lock failed")?
+            .pdf_snapshot(id);
+        if let Ok(Some(payload)) = payload {
+            let parsed = pdf::inspect(helper, payload)
+                .unwrap_or_else(|error| serde_json::json!({"status":"skipped","reason":error}));
+            if let Ok(Some(plan)) = engine
+                .lock()
+                .map_err(|_| "Engine lock failed")?
+                .plan_pdf_route(id, &parsed)
+            {
+                plans.push(plan);
+            }
+        }
+    }
+    for plan in engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .transfer_plans()
+    {
+        if plan.automatic && !plans.iter().any(|p| p.token == plan.token) && plans.len() < 26 {
+            plans.push(plan);
+        }
+    }
+    Ok(plans)
+}
 fn monitor(app: tauri::AppHandle, state: Shared) {
     std::thread::spawn(move || {
         let (send, recv) = std::sync::mpsc::sync_channel(1);
@@ -515,6 +670,11 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                 let _ = send.try_send(event);
             })
             .ok();
+        let helper = app
+            .path()
+            .resource_dir()
+            .ok()
+            .map(|path| path.join("filepilot-pdf"));
         let mut watched = HashSet::<PathBuf>::new();
         let mut last = Instant::now() - Duration::from_secs(60);
         let mut notified = HashSet::<(i64, u64)>::new();
@@ -581,6 +741,12 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                                 if !engine.settings.monitoring {
                                     break;
                                 }
+                                if engine.folder_is_held(p.root_id, &p.source) {
+                                    continue;
+                                }
+                                if engine.route_for_proposal(&p).ok().flatten().is_some() {
+                                    continue;
+                                }
                                 let expected = engine.permission_epoch;
                                 match engine.apply_guarded(p.id, false, || {
                                     state.epoch.load(Ordering::SeqCst) == expected
@@ -602,6 +768,44 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                     Err(e) => {
                         *state.notice.lock().unwrap() = format!("Folder requires attention {e}");
                     }
+                }
+            }
+            let plans = if let Some(helper) = &helper {
+                plan_workspace(&state.engine, helper)
+            } else {
+                state.engine.lock().unwrap().plan_routes()
+            };
+            if let Ok(plans) = plans {
+                for plan in plans {
+                    let mut engine = state.engine.lock().unwrap();
+                    if engine.settings.mode == filepilot_core::Mode::Smart
+                        || !engine.settings.monitoring
+                    {
+                        break;
+                    }
+                    if engine.folder_is_held(plan.source_root_id, &plan.source) {
+                        continue;
+                    }
+                    let expected = engine.permission_epoch;
+                    match engine.apply_transfer(plan.token, false, || {
+                        state.epoch.load(Ordering::SeqCst) == expected
+                    }) {
+                        Ok(_) => {
+                            applied = true;
+                            applied_roots.insert(plan.source_root_id);
+                            applied_roots.insert(plan.target_root_id);
+                        }
+                        Err(error) => {
+                            *state.notice.lock().unwrap() =
+                                format!("Routing needs attention {error}");
+                        }
+                    }
+                }
+            }
+            if applied {
+                let mut engine = state.engine.lock().unwrap();
+                for root_id in &applied_roots {
+                    let _ = engine.scan_background(*root_id);
                 }
             }
             let (notifications, pending) = {
@@ -642,6 +846,14 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
 fn main() {
     let application = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            prepare_folder_transfer,
+            cancel_folder_transfer,
+            apply_folder_transfer,
+            scan_all,
+            save_route,
+            clear_routes,
+            prepare_transfer,
+            apply_transfer,
             summarize_file,
             keep_here,
             clear_kept,

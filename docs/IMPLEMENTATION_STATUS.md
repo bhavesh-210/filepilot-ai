@@ -17,7 +17,7 @@ The UI now supports explicit file selection editable filename based folder title
 The user can select unwanted ordinary files for separately confirmed Trash
 The implementation does not autonomously infer which files are important or safe to discard
 Group moves use per file journaling and can stop with partial completion when an external change is detected
-Cross root imports permanent deletion and real Mac acceptance remain outside this iteration
+Cross volume transfers permanent deletion and real Mac acceptance remain outside this iteration
 
 ## Recursive analysis and sampled summaries
 
@@ -86,3 +86,11 @@ The developer workspace has a locally installed isolated Rust toolchain
 Swift and app bundling are compiled in the macOS GitHub runner
 
 Signing credentials user Mac permission interaction and independent human judgments cannot be fabricated by automated development
+
+## Main locations update
+
+See [workspace behavior and limits](WORKSPACE.md) for approved routing cross location transfers and the two item focus
+The core suite now has 115 passing synthetic tests locally
+The React suite includes 31 workflows and requires the current browser CI result
+Real Mac acceptance must check both grants folder picker renewals route previews per location counts file and folder transfer Undo and sleep wake reconciliation
+Use disposable sibling test roots for these checks

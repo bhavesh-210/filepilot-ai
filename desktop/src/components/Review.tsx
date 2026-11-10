@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Inventory, Proposal, Task, folderName } from "../types";
+import { Inventory, Proposal, Task, Folder, Route, folderName } from "../types";
 type FileSummary = {
   supported: boolean;
   excerpts: string[];
@@ -28,8 +28,16 @@ export function Review({
   onMessage,
   onChanged,
   onCollection,
+  onTransfer,
+  roots = [],
+  routes = [],
+  inventories = [],
 }: {
-  onCollection: (source: string, title: string) => void;
+  onCollection: (source: string, title: string, rootId: number) => void;
+  onTransfer: (rootId: number, source: string, category?: string) => void;
+  roots?: Folder[];
+  routes?: Route[];
+  inventories?: Inventory[];
   inventory: Inventory;
   busy: boolean;
   learn: boolean;
@@ -38,6 +46,7 @@ export function Review({
   onMessage: (text: string) => void;
   onChanged: () => Promise<unknown>;
 }) {
+  const [showAll, setShowAll] = useState(false);
   const [summaries, setSummaries] = useState<Record<number, FileSummary>>({});
   const [chosenFolders, setChosenFolders] = useState<Record<number, string>>(
     {},
@@ -51,7 +60,13 @@ export function Review({
           <h3>A home for every file</h3>
           <p>Review uncertain suggestions and anything waiting for approval</p>
         </div>
-        <span className="pill">{inventory.proposals.length} pending</span>
+        <span className="pill">
+          {Math.min(
+            showAll ? inventory.proposals.length : 2,
+            inventory.proposals.length,
+          )}{" "}
+          in focus
+        </span>
       </div>
       {inventory.errors.map((error, i) => (
         <p className="error" key={i}>
@@ -67,15 +82,46 @@ export function Review({
           </p>
         </div>
       )}
-      {inventory.proposals.map((original) => {
+      {inventory.proposals.length > 2 && (
+        <div className="focus-notice">
+          <b>{inventory.proposals.length} files are waiting in total</b>
+          <p>
+            {showAll
+              ? "All waiting files are shown"
+              : "Only the top two are in focus the others stay safely in place"}
+            <br />
+            Approve routing rules in Main locations to handle repeat work
+          </p>
+          <button onClick={() => setShowAll(!showAll)}>
+            {showAll ? "Return to two in focus" : "View all waiting files"}
+          </button>
+        </div>
+      )}
+      {inventory.proposals.slice(0, showAll ? undefined : 2).map((original) => {
         const p = overrides[original.id] || original;
+        const rowInventory =
+          inventories.find((i) => i.root_id === p.root_id) || inventory;
+        const rootId = p.root_id || inventory.root_id;
+        const savedRoute = routes.find(
+          (r) =>
+            r.category === (summaries[p.id]?.categories[0] || p.category) &&
+            roots.some((root) => root.id === r.target_root_id && root.active),
+        );
         return (
           <article className="review-card" key={p.id}>
             <div className="file-heading">
               <span className="file-icon">▤</span>
               <div>
                 <h4>{folderName(p.source)}</h4>
-                <small>{p.source}</small>
+                <small>
+                  {roots.length > 1
+                    ? folderName(
+                        roots.find((root) => root.id === rootId)?.path ||
+                          "Location",
+                      ) + " / "
+                    : ""}
+                  {p.source}
+                </small>
               </div>
               <span className={p.blocked || !p.certain ? "pill warm" : "pill"}>
                 {p.blocked || !p.certain
@@ -120,7 +166,36 @@ export function Review({
                     {summaries[p.id].categories.join("  ")}
                   </small>
                 )}
-                <h4>Folders with related files</h4>
+                {savedRoute && (
+                  <div className="related-folder">
+                    <div>
+                      <span className="pill">Recommended saved rule</span>
+                      <b>
+                        {folderName(
+                          roots.find((r) => r.id === savedRoute.target_root_id)
+                            ?.path || "Location",
+                        )}{" "}
+                        / {savedRoute.folder}
+                      </b>
+                      <small>
+                        Your explicitly approved category destination
+                      </small>
+                    </div>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        onTransfer(
+                          rootId,
+                          p.source,
+                          summaries[p.id].categories[0],
+                        )
+                      }
+                    >
+                      Preview recommended main location
+                    </button>
+                  </div>
+                )}
+                <h4>Related folders in this location</h4>
                 {summaries[p.id].destinations.length === 0 && (
                   <p>
                     No strong related folder match found in the bounded local
@@ -131,6 +206,10 @@ export function Review({
                   <div className="related-folder" key={candidate.folder}>
                     <div>
                       <b>{candidate.folder}</b>
+                      {!savedRoute &&
+                        candidate === summaries[p.id].destinations[0] && (
+                          <span className="pill recommended">Recommended</span>
+                        )}
                       <small>{candidate.reason}</small>
                       {candidate.similar_files.slice(0, 3).map((path) => (
                         <small key={path}>{path}</small>
@@ -160,7 +239,11 @@ export function Review({
                   <button
                     disabled={busy}
                     onClick={() =>
-                      onCollection(p.source, summaries[p.id].suggested_title)
+                      onCollection(
+                        p.source,
+                        summaries[p.id].suggested_title,
+                        rootId,
+                      )
                     }
                   >
                     Create a titled collection
@@ -179,7 +262,7 @@ export function Review({
                       }
                     >
                       <option value="">Choose a folder</option>
-                      {inventory.folders.map((folder) => (
+                      {rowInventory.folders.map((folder) => (
                         <option key={folder} value={folder}>
                           {folder}
                         </option>
@@ -304,6 +387,18 @@ export function Review({
               >
                 Inspect locally
               </button>
+              <button
+                disabled={busy}
+                onClick={() =>
+                  onTransfer(
+                    rootId,
+                    p.source,
+                    summaries[p.id]?.categories[0] || p.category,
+                  )
+                }
+              >
+                Move to another main location
+              </button>
               <details className="more">
                 <summary>More options</summary>
                 <button
@@ -326,7 +421,7 @@ export function Review({
                     onTask(async () => {
                       const operation = await invoke<number | null>(
                         "trash_file",
-                        { rootId: inventory.root_id, relativePath: p.source },
+                        { rootId, relativePath: p.source },
                       );
                       if (operation !== null) await onChanged();
                       onMessage(

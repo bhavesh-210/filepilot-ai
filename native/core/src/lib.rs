@@ -1,4 +1,8 @@
 //! Trusted native core with no network client and no arbitrary command execution
+mod folder_transfer;
+pub use folder_transfer::FolderTransferPlan;
+mod workspace;
+pub use workspace::{DirectoryStats, Route, TransferPlan};
 mod summaries;
 pub use summaries::FileSummary;
 mod collections;
@@ -107,6 +111,7 @@ pub struct Operation {
     pub destination: String,
     pub state: String,
     pub kind: String,
+    pub destination_root_id: Option<i64>,
 }
 pub struct Engine {
     db: Connection,
@@ -120,10 +125,15 @@ pub struct Engine {
     inventories: HashMap<i64, Inventory>,
     setup_previews: HashMap<i64, SetupPreview>,
     collections: HashMap<i64, CollectionPlan>,
+    transfers: HashMap<u64, TransferPlan>,
+    route_cursor: usize,
+    folder_transfers: HashMap<u64, FolderTransferPlan>,
+    pdf_route_cache: HashMap<(i64, String), (Identity, u64)>,
 }
 impl Engine {
     pub fn new(db: Connection) -> Result<Self> {
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA secure_delete=ON;
+        CREATE TABLE IF NOT EXISTS routes(category TEXT PRIMARY KEY,target_root_id INTEGER NOT NULL,folder TEXT NOT NULL,content INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS kept(root_id INTEGER NOT NULL,source TEXT NOT NULL,identity TEXT NOT NULL,PRIMARY KEY(root_id,source));
         CREATE TABLE IF NOT EXISTS roots(id INTEGER PRIMARY KEY AUTOINCREMENT,path TEXT NOT NULL UNIQUE,bookmark TEXT NOT NULL,reviewed INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS root_nodes(root_id INTEGER PRIMARY KEY,device TEXT NOT NULL,inode TEXT NOT NULL);
@@ -145,6 +155,7 @@ impl Engine {
         };
         for (name, definition) in [
             ("kind", "TEXT NOT NULL DEFAULT 'move'"),
+            ("destination_root_id", "INTEGER"),
             ("trash_root", "TEXT"),
             ("trash_device", "TEXT"),
             ("trash_inode", "TEXT"),
@@ -178,6 +189,10 @@ impl Engine {
             inventories: HashMap::new(),
             setup_previews: HashMap::new(),
             collections: HashMap::new(),
+            transfers: HashMap::new(),
+            route_cursor: 0,
+            folder_transfers: HashMap::new(),
+            pdf_route_cache: HashMap::new(),
         })
     }
     fn parent(&self, id: i64, relative: &str) -> std::io::Result<(std::fs::File, String)> {
@@ -668,6 +683,13 @@ impl Engine {
         for p in &inventory.proposals {
             self.pending.insert(p.id, p.clone());
         }
+        let live = inventory
+            .items
+            .iter()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
+        self.pdf_route_cache
+            .retain(|(root, source), _| *root != id || live.contains(source.as_str()));
         self.inventories.insert(id, inventory.clone());
         Ok(inventory)
     }
@@ -739,7 +761,7 @@ impl Engine {
             .get(&p.root_id)
             .ok_or("Folder access revoked")?
             .clone();
-        let unresolved:i64=self.db.query_row("SELECT count(*) FROM operations WHERE root_id=? AND state IN ('pending','undo_pending','needs_review')",[root.id],|r|r.get(0)).map_err(message)?;
+        let unresolved:i64=self.db.query_row("SELECT count(*) FROM operations WHERE (root_id=? OR destination_root_id=?1) AND state IN ('pending','undo_pending','needs_review')",[root.id],|r|r.get(0)).map_err(message)?;
         if unresolved > 0 {
             return Err("Resolve interrupted operations before more file changes".into());
         }
@@ -750,6 +772,9 @@ impl Engine {
             return Err("Renaming disabled".into());
         }
         if !approved {
+            if self.folder_is_held(root.id, &p.source) {
+                return Err("A folder transfer preview is holding this collection".into());
+            }
             if !root.initial_reviewed || self.settings.mode == Mode::Smart {
                 return Err("Explicit preview approval required".into());
             }
@@ -976,7 +1001,7 @@ impl Engine {
         )
     }
     pub fn history(&self) -> Result<Vec<Operation>> {
-        let mut q=self.db.prepare("SELECT id,root_id,source,destination,state,kind FROM operations ORDER BY id DESC LIMIT 500").map_err(message)?;
+        let mut q=self.db.prepare("SELECT id,root_id,source,destination,state,kind,destination_root_id FROM operations ORDER BY id DESC LIMIT 500").map_err(message)?;
         let rows = q
             .query_map([], |r| {
                 Ok(Operation {
@@ -986,6 +1011,7 @@ impl Engine {
                     destination: r.get(3)?,
                     state: r.get(4)?,
                     kind: r.get(5)?,
+                    destination_root_id: r.get(6)?,
                 })
             })
             .map_err(message)?;
@@ -1000,6 +1026,12 @@ impl Engine {
             .db
             .query_row("SELECT kind FROM operations WHERE id=?", [id], |r| r.get(0))
             .map_err(message)?;
+        if kind == "folder_transfer" {
+            return self.undo_folder_transfer(id, permission_current);
+        }
+        if kind == "transfer" {
+            return self.undo_transfer(id, permission_current);
+        }
         if kind == "trash" {
             return self.undo_trash_guarded(id, permission_current);
         }
@@ -1049,14 +1081,27 @@ impl Engine {
             return Err("Permissions changed before Undo".into());
         }
         fs::move_exclusive(&from, &current_name, &to, &original_name).map_err(message)?;
-        self.db
+        let restored = fs::identity(&to, &original_name).map_err(message)?;
+        let transaction = self.db.unchecked_transaction().map_err(message)?;
+        transaction
             .execute("UPDATE operations SET state='undone' WHERE id=?", [id])
             .map_err(message)?;
+        transaction
+            .execute(
+                "INSERT OR REPLACE INTO kept VALUES(?,?,?)",
+                params![
+                    root.id,
+                    source,
+                    serde_json::to_string(&restored).map_err(message)?
+                ],
+            )
+            .map_err(message)?;
+        transaction.commit().map_err(message)?;
         self.pending.clear();
         Ok(())
     }
     pub fn recover(&mut self) -> Result<()> {
-        let mut query=self.db.prepare("SELECT id,root_id,source,destination,state,kind FROM operations WHERE state IN ('pending','undo_pending','directory_pending')").map_err(message)?;
+        let mut query=self.db.prepare("SELECT id,root_id,source,destination,state,kind,destination_root_id FROM operations WHERE state IN ('pending','undo_pending','directory_pending')").map_err(message)?;
         let operations = query
             .query_map([], |r| {
                 Ok(Operation {
@@ -1066,6 +1111,7 @@ impl Engine {
                     destination: r.get(3)?,
                     state: r.get(4)?,
                     kind: r.get(5)?,
+                    destination_root_id: r.get(6)?,
                 })
             })
             .map_err(message)?
@@ -1089,6 +1135,14 @@ impl Engine {
                         )
                         .map_err(message)?;
                 }
+                continue;
+            }
+            if op.kind == "folder_transfer" {
+                self.recover_folder_transfer(&op)?;
+                continue;
+            }
+            if op.kind == "transfer" {
+                self.recover_transfer(&op)?;
                 continue;
             }
             if op.kind == "trash" {
