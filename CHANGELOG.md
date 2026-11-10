@@ -1,5 +1,12 @@
 # Changelog
 
+## Check the synthetic datasets
+
+- Add the starter and expanded synthetic examples
+- Validate labels provenance and family splits
+- Reject malformed provenance and duplicate JSON keys
+- Keep incomplete category coverage ineligible for training
+
 ## Update the GitHub action runtimes
 
 - Move checkout and Python setup to versions that use Node 24
