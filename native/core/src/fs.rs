@@ -21,6 +21,9 @@ fn err(s: &str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, s)
 }
 pub fn excluded(name: &str) -> bool {
+    name.starts_with('.') || excluded_root_component(name)
+}
+fn excluded_root_component(name: &str) -> bool {
     [
         ".ssh",
         ".aws",
@@ -31,6 +34,7 @@ pub fn excluded(name: &str) -> bool {
         "venv",
         "Library",
         "System",
+        "Applications",
         "__pycache__",
     ]
     .contains(&name)
@@ -98,7 +102,7 @@ pub fn root(path: &Path) -> io::Result<File> {
                 let name = name
                     .to_str()
                     .ok_or_else(|| err("Unsupported path encoding"))?;
-                if name.chars().any(|c| c.is_control()) || excluded(name) {
+                if name.chars().any(|c| c.is_control()) || excluded_root_component(name) {
                     return Err(err("Excluded root"));
                 }
                 fd = open_at(fd.as_raw_fd(), name)?;

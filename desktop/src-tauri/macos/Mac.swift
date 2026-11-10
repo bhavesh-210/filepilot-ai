@@ -25,6 +25,32 @@ public func chooseRoot() -> UnsafeMutablePointer<CChar>? {
         return output(["path": url.resolvingSymlinksInPath().path, "bookmark": bookmark.base64EncodedString()])
     } catch { return output(["error": "Could not retain folder access"]) }
 }
+@_cdecl("fp_choose_roots")
+public func chooseRoots() -> UnsafeMutablePointer<CChar>? {
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = false
+    panel.canChooseDirectories = true
+    panel.allowsMultipleSelection = true
+    panel.canDownloadUbiquitousContents = false
+    panel.canResolveUbiquitousConflicts = false
+    panel.prompt = "Allow access"
+    panel.message = "Choose the folders FilePilot may maintain Command click to choose several"
+    guard panel.runModal() == .OK else { return output(["cancelled":true]) }
+    var folders:[[String:String]] = []
+    for url in panel.urls {
+        do {
+            let bookmark = try url.bookmarkData(options:[.withSecurityScope], includingResourceValuesForKeys:nil, relativeTo:nil)
+            let canonical = url.resolvingSymlinksInPath().path
+            if let previous = held.removeValue(forKey:canonical) { previous.stopAccessingSecurityScopedResource() }
+            if url.startAccessingSecurityScopedResource() { held[canonical] = url }
+            folders.append(["path":canonical,"bookmark":bookmark.base64EncodedString()])
+        } catch {
+            // Successful grants remain available and each failed bookmark is reported
+            folders.append(["path":url.resolvingSymlinksInPath().path,"bookmark":""])
+        }
+    }
+    return output(["folders":folders])
+}
 @_cdecl("fp_resolve_root")
 public func resolveRoot(_ encoded: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
     guard let data = Data(base64Encoded: String(cString: encoded)) else { return output(["error":"Invalid bookmark"]) }

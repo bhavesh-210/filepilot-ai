@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use filepilot_core::pdf_worker as pdf;
-use filepilot_core::{Engine, Settings};
+use filepilot_core::{Engine, Preferences, Settings};
 use notify::{RecursiveMode, Watcher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
@@ -21,6 +21,7 @@ struct Shared {
 extern "C" {
     fn fp_confirm_trash(source: *const libc::c_char) -> *mut libc::c_char;
     fn fp_semantic_rank(input: *const libc::c_char) -> *mut libc::c_char;
+    fn fp_choose_roots() -> *mut libc::c_char;
     fn fp_choose_root() -> *mut libc::c_char;
     fn fp_resolve_root(encoded: *const libc::c_char) -> *mut libc::c_char;
     fn fp_release_root(path: *const libc::c_char);
@@ -45,7 +46,7 @@ fn snapshot(state: tauri::State<Shared>) -> Result<serde_json::Value, String> {
     let engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
     let roots=engine.saved_roots()?.iter().map(|r|serde_json::json!({"id":r.id,"path":r.path,"initial_reviewed":r.initial_reviewed,"active":engine.roots.contains_key(&r.id)})).collect::<Vec<_>>();
     Ok(
-        serde_json::json!({"settings":engine.settings,"roots":roots,"history":engine.history()?,"notice":*state.notice.lock().map_err(|_|"Notice lock failed")?}),
+        serde_json::json!({"preferences":engine.preferences()?,"inventories":engine.inventories(),"settings":engine.settings,"roots":roots,"history":engine.history()?,"notice":*state.notice.lock().map_err(|_|"Notice lock failed")?}),
     )
 }
 #[tauri::command]
@@ -78,6 +79,87 @@ async fn choose_folder(
     .map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
         recv.recv().map_err(|_| "Folder picker ended".to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn choose_folders(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Shared>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
+    let (send, recv) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        #[cfg(target_os = "macos")]
+        let result = (|| {
+            let value = unsafe { native_json(fp_choose_roots()) }?;
+            let mut ids = Vec::new();
+            let mut errors = Vec::new();
+            if let Some(items) = value["folders"].as_array() {
+                let token = epoch.fetch_add(1, Ordering::SeqCst) + 1;
+                let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
+                engine.permission_epoch = token;
+                for item in items {
+                    let path = item["path"].as_str().ok_or("Missing folder path")?;
+                    let bookmark = item["bookmark"].as_str().ok_or("Missing bookmark")?;
+                    if bookmark.is_empty() { errors.push(format!("{path} Could not retain folder access")); continue; }
+                    match engine.authorize(PathBuf::from(path), bookmark.into()) {
+                        Ok(id) => ids.push(id),
+                        Err(error) => {
+                            if let Ok(path) = CString::new(path) { unsafe { fp_release_root(path.as_ptr()) }; }
+                            errors.push(format!("{path} {error}"));
+                        }
+                    }
+                }
+            }
+            Ok(serde_json::json!({"ids":ids,"errors":errors,"cancelled":value["cancelled"] == true}))
+        })();
+        #[cfg(not(target_os = "macos"))]
+        let result: Result<serde_json::Value, String> = Err("macOS required".into());
+        let _ = send.send(result);
+    }).map_err(|e|e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        recv.recv().map_err(|_| "Folder picker ended".to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+fn update_preferences(preferences: Preferences, state: tauri::State<Shared>) -> Result<(), String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    engine.permission_epoch = epoch;
+    engine.set_preferences(preferences)
+}
+#[tauri::command]
+async fn prepare_setup(
+    root_id: i64,
+    state: tauri::State<'_, Shared>,
+) -> Result<filepilot_core::SetupPreview, String> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine
+            .lock()
+            .map_err(|_| "Engine lock failed")?
+            .prepare_setup(root_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn finish_setup(
+    root_id: i64,
+    token: u64,
+    state: tauri::State<'_, Shared>,
+) -> Result<(), String> {
+    let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut engine = engine.lock().map_err(|_| "Engine lock failed")?;
+        let expected = engine.permission_epoch;
+        engine.finish_setup_guarded(root_id, token, || epoch.load(Ordering::SeqCst) == expected)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -405,7 +487,13 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
             let mut applied = false;
             let mut applied_roots = HashSet::new();
             for root in roots {
-                let scan = state.engine.lock().unwrap().scan_background(root.id);
+                let scan = {
+                    let mut engine = state.engine.lock().unwrap();
+                    let expected = engine.permission_epoch;
+                    engine.maintain_guarded(root.id, || {
+                        state.epoch.load(Ordering::SeqCst) == expected
+                    })
+                };
                 match scan {
                     Ok(inventory) => {
                         for p in inventory.proposals {
@@ -447,6 +535,10 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
 fn main() {
     let application = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            choose_folders,
+            update_preferences,
+            prepare_setup,
+            finish_setup,
             remember_example,
             trash_file,
             reconcile,

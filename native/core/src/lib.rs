@@ -3,6 +3,7 @@ pub mod fs;
 pub mod pdf_worker;
 mod personalization;
 mod trash;
+mod workflow;
 use fs::Identity;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 pub use trash::PreparedTrash;
+pub use workflow::{Preferences, SetupPreview};
 pub type Result<T> = std::result::Result<T, String>;
 fn message<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
@@ -84,6 +86,7 @@ pub struct Proposal {
 pub struct Inventory {
     pub root_id: i64,
     pub files: usize,
+    pub folders: Vec<String>,
     pub protected: usize,
     pub errors: Vec<String>,
     pub proposals: Vec<Proposal>,
@@ -106,6 +109,8 @@ pub struct Engine {
     pending: HashMap<u64, Proposal>,
     next_id: u64,
     authorization_epoch: u64,
+    inventories: HashMap<i64, Inventory>,
+    setup_previews: HashMap<i64, SetupPreview>,
 }
 impl Engine {
     pub fn new(db: Connection) -> Result<Self> {
@@ -160,6 +165,8 @@ impl Engine {
             root_identities: HashMap::new(),
             next_id: 1,
             authorization_epoch: 0,
+            inventories: HashMap::new(),
+            setup_previews: HashMap::new(),
         })
     }
     fn parent(&self, id: i64, relative: &str) -> std::io::Result<(std::fs::File, String)> {
@@ -324,27 +331,38 @@ impl Engine {
             return Err("Project protected".into());
         }
         for category in CATEGORIES {
-            let existed = fs::exists(&fd, category).map_err(message)?;
-            self.db.execute("INSERT INTO operations(root_id,source,destination,identity,state,digest,kind) VALUES(?,'',?,'{}','directory_pending','','mkdir')",params![id,category]).map_err(message)?;
-            let operation = self.db.last_insert_rowid();
-            let result = fs::mkdir(&fd, category);
-            let status = if result.is_ok() {
-                if existed {
-                    "existing_directory"
-                } else {
-                    "created_directory"
-                }
-            } else {
-                "directory_setup_failed"
-            };
-            self.db
-                .execute(
-                    "UPDATE operations SET state=? WHERE id=?",
-                    params![status, operation],
-                )
-                .map_err(message)?;
-            result.map_err(message)?;
+            self.create_category(id, category)?;
         }
+        Ok(())
+    }
+    fn create_category(&self, id: i64, category: &str) -> Result<()> {
+        if !CATEGORIES.contains(&category) {
+            return Err("Invalid category".into());
+        }
+        let fd = self.opened_root(id)?;
+        if fs::project(fd.as_raw_fd()) {
+            return Err("Project protected".into());
+        }
+        let existed = fs::exists(&fd, category).map_err(message)?;
+        self.db.execute("INSERT INTO operations(root_id,source,destination,identity,state,digest,kind) VALUES(?,'',?,'{}','directory_pending','','mkdir')",params![id,category]).map_err(message)?;
+        let operation = self.db.last_insert_rowid();
+        let result = fs::mkdir(&fd, category);
+        let status = if result.is_ok() {
+            if existed {
+                "existing_directory"
+            } else {
+                "created_directory"
+            }
+        } else {
+            "directory_setup_failed"
+        };
+        self.db
+            .execute(
+                "UPDATE operations SET state=? WHERE id=?",
+                params![status, operation],
+            )
+            .map_err(message)?;
+        result.map_err(message)?;
         Ok(())
     }
     pub fn mark_initial_reviewed(&mut self, id: i64) -> Result<()> {
@@ -414,11 +432,15 @@ impl Engine {
         let mut inventory = Inventory {
             root_id: id,
             files: 0,
+            folders: Vec::new(),
             protected: 0,
             errors: Vec::new(),
             proposals: Vec::new(),
         };
         let mut stack = vec![(fd, String::new(), 0)];
+        let preferences = self.preferences()?;
+        let mut directories = Vec::new();
+        let mut files = Vec::new();
         let mut targets = HashSet::new();
         let mut visited = 0;
         'walk: while let Some((directory, relative, depth)) = stack.pop() {
@@ -427,6 +449,9 @@ impl Engine {
             {
                 inventory.protected += 1;
                 continue;
+            }
+            if !relative.is_empty() {
+                directories.push(relative.clone());
             }
             let names = match fs::names(&directory) {
                 Ok(x) => x,
@@ -466,114 +491,138 @@ impl Engine {
                     }
                 };
                 inventory.files += 1;
-                let mut category = classify(&name);
-                let mut example_used = false;
-                let mut target_folder = category.clone();
-                let mut preference_used = false;
-                if self.settings.mode == Mode::Limited {
-                    if let Ok(value) = self.db.query_row(
-                        "SELECT destination FROM rules WHERE root_id=? AND category=?",
-                        params![id, category],
-                        |r| r.get::<_, String>(0),
-                    ) {
-                        target_folder = value;
-                        preference_used = true;
+                files.push((source, name, relative.clone(), snapshot));
+            }
+        }
+        directories.sort();
+        inventory.folders = directories.clone();
+        files.sort_by(|a, b| a.0.cmp(&b.0));
+        for (source, name, relative, snapshot) in files {
+            // Existing collections are inventoried but never flattened
+            if !relative.is_empty() && !workflow::inbox(&relative) {
+                continue;
+            }
+            let mut category = classify(&name);
+            let mut example_used = false;
+            let mut target_folder = category.clone();
+            let mut preference_used = false;
+            if self.settings.mode == Mode::Limited {
+                if let Ok(value) = self.db.query_row(
+                    "SELECT destination FROM rules WHERE root_id=? AND category=?",
+                    params![id, category],
+                    |r| r.get::<_, String>(0),
+                ) {
+                    target_folder = value;
+                    preference_used = true;
+                }
+            }
+            if self.settings.personalization && !preference_used {
+                if let Ok(value) = self.db.query_row(
+                    "SELECT destination FROM corrections WHERE root_id=? AND category=?",
+                    params![id, category],
+                    |r| r.get::<_, String>(0),
+                ) {
+                    target_folder = value;
+                    preference_used = true;
+                }
+            }
+            if !preference_used {
+                if let Some((suggested_category, folder)) = self.nearest_example(id, &name)? {
+                    if CATEGORIES.contains(&suggested_category.as_str()) {
+                        category = suggested_category;
+                        target_folder = folder;
+                        example_used = true;
                     }
                 }
-                if self.settings.personalization && !preference_used {
-                    if let Ok(value) = self.db.query_row(
-                        "SELECT destination FROM corrections WHERE root_id=? AND category=?",
-                        params![id, category],
-                        |r| r.get::<_, String>(0),
-                    ) {
-                        target_folder = value;
-                        preference_used = true;
-                    }
+            }
+            let mut structure_review = false;
+            if !preference_used && !example_used && preferences.reuse_existing {
+                let candidates = workflow::destinations(&directories, &category);
+                if let Some(first) = candidates.first() {
+                    target_folder = first.clone();
+                    structure_review = candidates.len() > 1;
                 }
-                if !preference_used {
-                    if let Some((suggested_category, folder)) = self.nearest_example(id, &name)? {
-                        if CATEGORIES.contains(&suggested_category.as_str()) {
-                            category = suggested_category;
-                            target_folder = folder;
-                            example_used = true;
-                        }
-                    }
-                }
-                let proposed_name = if self.settings.rename {
-                    normalized_name(&name)
+            }
+            let proposed_name = if self.settings.rename {
+                normalized_name(&name)
+            } else {
+                name.clone()
+            };
+            let destination = if category == "Unknown" {
+                None
+            } else {
+                Some(format!("{target_folder}/{proposed_name}"))
+            };
+            if destination.as_deref() == Some(&source) {
+                continue;
+            }
+            let mut reason = if destination.is_none() {
+                "Needs classification review"
+            } else {
+                if example_used {
+                    "Nearest explicit local correction requires review"
                 } else {
-                    name.clone()
-                };
-                let destination = if category == "Unknown" {
-                    None
-                } else {
-                    Some(format!("{target_folder}/{proposed_name}"))
-                };
-                if destination.as_deref() == Some(&source) {
-                    continue;
-                }
-                let mut reason = if destination.is_none() {
-                    "Needs classification review"
-                } else {
-                    if example_used {
-                        "Nearest explicit local correction requires review"
+                    if structure_review {
+                        "Multiple existing folders need your choice"
+                    } else if target_folder != category {
+                        "Reuse an existing category folder"
                     } else {
                         "Category destination rule"
                     }
                 }
-                .to_string();
-                let mut blocked = destination.is_none();
-                if let Some(dest) = &destination {
-                    match self.parent(root.id, dest) {
-                        Ok((parent, basename)) => {
-                            if fs::exists(&parent, &basename).unwrap_or(true) {
-                                blocked = true;
-                                reason = "Destination already exists".into();
-                            }
-                        }
-                        Err(_) => {
-                            blocked = true;
-                            reason = "Create or choose an authorized category folder".into();
-                        }
-                    }
-                    // Kernel exclusive rename remains the final collision authority
-                    if !targets.insert(dest.to_lowercase()) {
-                        blocked = true;
-                        reason = "Two proposals share a destination".into();
-                    }
-                }
-                if snapshot.size > 64 * 1024 * 1024 {
-                    blocked = true;
-                    reason = "File exceeds the 64 MiB execution limit".into();
-                }
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map_err(message)?
-                    .as_secs() as i64;
-                if now.saturating_sub(snapshot.mtime) < 10 {
-                    blocked = true;
-                    reason = "File must be stable for at least ten seconds".into();
-                }
-                let proposal = Proposal {
-                    id: self.next_id,
-                    root_id: id,
-                    source,
-                    destination,
-                    category: category.clone(),
-                    reason,
-                    blocked,
-                    revision: self.settings.revision,
-                    rename: proposed_name != name,
-                    certain: category != "Unknown" && !example_used,
-                    manual_destination: false,
-                    snapshot,
-                };
-                self.next_id = self
-                    .next_id
-                    .checked_add(1)
-                    .ok_or("Proposal identifiers exhausted")?;
-                inventory.proposals.push(proposal);
             }
+            .to_string();
+            let mut blocked = destination.is_none();
+            if let Some(dest) = &destination {
+                match self.parent(root.id, dest) {
+                    Ok((parent, basename)) => {
+                        if fs::exists(&parent, &basename).unwrap_or(true) {
+                            blocked = true;
+                            reason = "Destination already exists".into();
+                        }
+                    }
+                    Err(_) => {
+                        blocked = true;
+                        reason = "Create or choose an authorized category folder".into();
+                    }
+                }
+                // Kernel exclusive rename remains the final collision authority
+                if !targets.insert(dest.to_lowercase()) {
+                    blocked = true;
+                    reason = "Two proposals share a destination".into();
+                }
+            }
+            if snapshot.size > 64 * 1024 * 1024 {
+                blocked = true;
+                reason = "File exceeds the 64 MiB execution limit".into();
+            }
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(message)?
+                .as_secs() as i64;
+            if now.saturating_sub(snapshot.mtime) < 10 {
+                blocked = true;
+                reason = "File must be stable for at least ten seconds".into();
+            }
+            let proposal = Proposal {
+                id: self.next_id,
+                root_id: id,
+                source,
+                destination,
+                category: category.clone(),
+                reason,
+                blocked,
+                revision: self.settings.revision,
+                rename: proposed_name != name,
+                certain: category != "Unknown" && !example_used && !structure_review,
+                manual_destination: false,
+                snapshot,
+            };
+            self.next_id = self
+                .next_id
+                .checked_add(1)
+                .ok_or("Proposal identifiers exhausted")?;
+            inventory.proposals.push(proposal);
         }
         if !inventory.errors.is_empty() {
             for p in &mut inventory.proposals {
@@ -584,6 +633,7 @@ impl Engine {
         for p in &inventory.proposals {
             self.pending.insert(p.id, p.clone());
         }
+        self.inventories.insert(id, inventory.clone());
         Ok(inventory)
     }
     pub fn scan_background(&mut self, id: i64) -> Result<Inventory> {
