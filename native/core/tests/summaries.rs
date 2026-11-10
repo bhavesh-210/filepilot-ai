@@ -278,3 +278,24 @@ fn repeated_project_checks_do_not_consume_directory_enumeration() {
     assert_eq!(e.scan(id).unwrap().files, 1);
     assert_eq!(e.scan(id).unwrap().files, 1);
 }
+#[test]
+fn explicit_reviewed_destination_is_not_flagged_again_until_changed() {
+    let (d, mut e, id) = setup();
+    write(
+        d.path(),
+        "Archive/unknown.txt",
+        "An invoice payment amount and bank transaction",
+    );
+    fs::create_dir(d.path().join("My Chosen Collection")).unwrap();
+    let p = e.scan(id).unwrap().proposals.remove(0);
+    e.review_folder(p.id, "My Chosen Collection".into())
+        .unwrap();
+    e.apply(p.id, true).unwrap();
+    assert!(e.scan(id).unwrap().proposals.is_empty());
+    write(
+        d.path(),
+        "My Chosen Collection/unknown.txt",
+        "A changed course assignment lesson and homework",
+    );
+    assert_eq!(e.scan(id).unwrap().proposals.len(), 1);
+}

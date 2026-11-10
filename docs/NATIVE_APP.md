@@ -232,6 +232,8 @@ Suggestions are heuristics and never grant automatic move permission
 A displayed folder can be selected explicitly for a guarded reversible move
 Create a titled collection opens Collections with the source and suggested title already filled in
 Keep here saves the source identity locally suppressing unchanged future proposals until the file changes or the user clears those decisions
+A manually reviewed destination also records that explicit placement using the post move identity in the same transaction as the applied journal state
+This prevents a newly named collection from being immediately flagged again
 Keep here is separate from personalization and clearing learning does not silently discard that explicit choice
 
 ## Review notifications

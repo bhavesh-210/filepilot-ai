@@ -142,7 +142,7 @@ Failed actions refresh journal history too so interrupted Trash verification rem
 
 ## Recursive summaries and attention workflow
 
-The native core now contains 81 tests including 12 new summary and recursive traversal scenarios
+The native core now contains 82 tests including 13 new summary and recursive traversal scenarios
 They cover nested unknown and misplaced files already fitting category folders project layouts read only extractive overviews actual neighbouring text comparisons changed sources explicit Keep here persistence unsupported formats content instruction isolation bounded PDF labels and manual destination policy
 A regression test verifies that project checks do not consume directory enumeration offsets
 The React suite contains 24 synthetic workflows including sampled summaries Keep here explicit related moves seeded collections and notification opt in
@@ -152,3 +152,5 @@ The deeper disposable acceptance pack has 54 files 65 folders five valid text PD
 A read only native scan inventoried 41 ordinary safe files and 56 safe folders while excluding all three detected projects and protected entries
 It produced a content overview of Archive Unsorted 2024 scan_001 and ranked the existing Finance Invoices 2026 folder first in the checked fixture
 This synthetic diagnostic is not an independent model accuracy benchmark
+
+An explicit reviewed destination is retained for the unchanged file so a manually organised collection is not repeatedly flagged

@@ -801,12 +801,26 @@ impl Engine {
         {
             return Err("Unexpected file identity requires recovery".into());
         }
-        self.db
+        let transaction = self.db.unchecked_transaction().map_err(message)?;
+        transaction
             .execute(
                 "UPDATE operations SET state='applied',identity=? WHERE id=?",
                 params![serde_json::to_string(&after).map_err(message)?, operation],
             )
             .map_err(message)?;
+        if approved && p.manual_destination {
+            transaction
+                .execute(
+                    "INSERT OR REPLACE INTO kept VALUES(?,?,?)",
+                    params![
+                        root.id,
+                        destination,
+                        serde_json::to_string(&after).map_err(message)?
+                    ],
+                )
+                .map_err(message)?;
+        }
+        transaction.commit().map_err(message)?;
         self.pending.remove(&id);
         Ok(operation)
     }
