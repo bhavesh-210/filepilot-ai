@@ -66,3 +66,14 @@ The scanner stays read only until the next milestone is designed and tested
 - [x] Run document checks on GitHub with the optional parser installed
 
 This milestone extracts text rather than claiming semantic understanding or automatic organisation
+
+## Destination and review foundations
+
+- [x] Add deterministic destination ranking and metric helpers
+- [x] Generate read only collision aware plans
+- [x] Separate policy decisions from ranking
+- [x] Store explicit scoped corrections locally
+- [x] Add disable and clear controls to the preference component
+- [x] Add an offline browser review prototype
+
+See IMPLEMENTATION_STATUS for the native product work still pending

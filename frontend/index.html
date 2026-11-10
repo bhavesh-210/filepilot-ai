@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>FilePilot AI review</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#e7edf5;background:#101620;color-scheme:dark}*{box-sizing:border-box}body{margin:0}header{padding:28px 5vw;border-bottom:1px solid #303a48;display:flex;align-items:center;justify-content:space-between;gap:20px}h1{font-size:24px;margin:0}p{line-height:1.6;color:#aebccc}.tag{font-size:12px;color:#7ee0c4;border:1px solid #347467;padding:7px 12px;border-radius:20px}main{max-width:1200px;margin:auto;padding:32px 24px}.toolbar,.stats{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.toolbar{margin:24px 0}button,.file-label,select{font:inherit;background:#233043;color:#e7edf5;border:1px solid #42546b;border-radius:8px;padding:11px 16px;cursor:pointer}button:focus-visible,select:focus-visible,.file-label:focus-within{outline:3px solid #70e0c2;outline-offset:3px}button:hover{background:#31445c}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:#155f50;border-color:#2a9a80}input[type=file]{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.stats>div{flex:1;min-width:140px;background:#192330;border:1px solid #303e50;border-radius:12px;padding:20px}.number{display:block;font-size:28px;font-weight:700;margin-bottom:4px}.muted{color:#aebccc}#message{min-height:24px;color:#83e1ca}.table-wrap{overflow:auto;border:1px solid #303e50;border-radius:12px}table{width:100%;border-collapse:collapse;background:#161f2c;text-align:left}th{color:#9cb0c8;font-size:12px;text-transform:uppercase;letter-spacing:.06em}td,th{padding:18px;border-bottom:1px solid #2c3748}td{vertical-align:top}td:first-child{max-width:270px;overflow-wrap:anywhere}.destination{color:#86e4ce;overflow-wrap:anywhere}.reason{font-size:12px;color:#aebccc;margin-top:6px}.blocked{color:#ffbd83}.notice{background:#202d3c;border-left:3px solid #73d9bd;padding:16px 20px;border-radius:6px;margin:24px 0}.small{font-size:13px}footer{margin-top:24px;font-size:13px;color:#aebccc}#root{overflow-wrap:anywhere}.empty{padding:32px;text-align:center}@media(max-width:650px){header{align-items:flex-start;flex-direction:column}td,th{padding:12px}main{padding:20px 12px}h1{font-size:22px}.toolbar>*{max-width:100%}}
+</style>
+</head>
+<body>
+<header><div><h1>FilePilot AI</h1><div class="muted small">Your Files Your Mac Your Control</div></div><span class="tag">Offline review prototype</span></header>
+<main>
+<h2>Your organisation preview</h2>
+<p>Review suggested destinations before any future file operations</p>
+<div class="notice">This screen cannot move rename or delete files<br><span class="small">Review choices stay in this tab until you export them or close it</span></div>
+<div class="toolbar">
+<button id="demo" class="primary">Load synthetic demo</button>
+<label class="file-label">Open plan JSON<input id="import" type="file" accept=".json,application/json"></label>
+<label>Preview mode <select id="mode"><option value="full">Full autonomy</option><option value="smart">Smart approval</option><option value="limited">Limited autonomy</option></select></label>
+<button id="export" disabled>Export review choices</button>
+<button id="clear">Clear session</button>
+</div>
+<div id="message" role="status" aria-live="polite"></div>
+<p id="root" class="small">Load a synthetic demo or a plan that you explicitly generated</p>
+<div class="stats"><div><span class="number" id="count">0</span>Proposals</div><div><span class="number" id="blocked">0</span>Blocked</div><div><span class="number" id="reviewed">0</span>Marked reviewed</div><div><span class="number" id="protected">0</span>Left untouched</div></div>
+<h3>Suggested changes</h3>
+<div class="table-wrap"><table><thead><tr><th>Source</th><th>Suggested destination</th><th>Review status</th></tr></thead><tbody id="rows"><tr><td colspan="3" class="empty">No plan loaded</td></tr></tbody></table></div>
+<footer>Lexical and category baseline<br>No semantic model is connected<br>Mode changes clear review choices and do not grant filesystem permissions</footer>
+</main>
+<script>
+'use strict';
+// Discovered strings are rendered as text and never interpreted as markup or commands
+const el=id=>document.getElementById(id);
+let plan=null, revision=0;
+const reviewed=new Set();
+function pathValid(p){return typeof p==='string'&&p.length>0&&p.length<=4096&&!p.startsWith('/')&&!/[\\\x00-\x1f]/.test(p)&&p.split('/').every(x=>x&&x!=='.'&&x!=='..');}
+function validate(value){
+ if(!value||value.report_type!=='organization_plan'||value.schema_version!=='0.1.0'||value.read_only!==true||value.executable!==false||typeof value.root!=='string'||value.root.length>4096||!['full','smart','limited'].includes(value.mode)||!Number.isSafeInteger(value.policy_revision)||value.policy_revision<0||!Array.isArray(value.proposals)||value.proposals.length>10000||!Array.isArray(value.untouched)||value.untouched.length>100000||typeof value.inventory_sha256!=='string'||!/^[a-f0-9]{64}$/.test(value.inventory_sha256))throw Error('Invalid plan');
+ const ids=new Set();
+ for(const p of value.proposals){
+  if(!p||typeof p.id!=='string'||!/^[a-f0-9]{24}$/.test(p.id)||ids.has(p.id)||!pathValid(p.source)||(p.destination!==null&&!pathValid(p.destination))||p.action!=='move'||typeof p.blocked!=='boolean'||p.executable!==false||p.review_required!==true||typeof p.reason!=='string'||p.reason.length>500)throw Error('Invalid proposal');
+  ids.add(p.id);
+ }
+ return value;
+}
+function message(text){el('message').textContent=text;}
+function load(value){plan=validate(value);reviewed.clear();revision=plan.policy_revision;el('mode').value=plan.mode;render();message('Plan loaded for review only');}
+function render(){
+ const proposals=plan?plan.proposals:[];
+ el('count').textContent=proposals.length;el('blocked').textContent=proposals.filter(p=>p.blocked).length;el('reviewed').textContent=reviewed.size;el('protected').textContent=plan?plan.untouched.length:0;
+ el('root').textContent=plan?'Inventory root '+plan.root:'Load a synthetic demo or a plan that you explicitly generated';
+ el('export').disabled=!plan;
+ const rows=el('rows');rows.replaceChildren();
+ if(!proposals.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=3;td.className='empty';td.textContent='No proposed moves';tr.append(td);rows.append(tr);return;}
+ for(const p of proposals){
+  const tr=document.createElement('tr'),source=document.createElement('td'),target=document.createElement('td'),status=document.createElement('td');
+  source.textContent=p.source;const dest=document.createElement('div');dest.className='destination';dest.textContent=p.destination||'Review destination needed';const reason=document.createElement('div');reason.className='reason';reason.textContent=p.reason.replaceAll('_',' ');target.append(dest,reason);
+  if(p.blocked){status.textContent='Blocked';status.className='blocked';}
+  else{const button=document.createElement('button');button.textContent=reviewed.has(p.id)?'Undo review mark':'Mark reviewed';button.setAttribute('aria-label',button.textContent+' '+p.source);button.onclick=()=>{reviewed.has(p.id)?reviewed.delete(p.id):reviewed.add(p.id);render();};status.append(button);}
+  tr.append(source,target,status);rows.append(tr);
+ }
+}
+const demo={schema_version:'0.1.0',report_type:'organization_plan',root:'/synthetic/demo',read_only:true,executable:false,inventory_sha256:'0'.repeat(64),policy_revision:0,mode:'full',untouched:[{path:'demo-project'}],proposals:[
+ {id:'1'.repeat(24),source:'lecture_notes.txt',destination:'College/lecture_notes.txt',action:'move',reason:'advisory_destination_ranking',blocked:false,executable:false,review_required:true},
+ {id:'2'.repeat(24),source:'receipt.pdf',destination:'Finance/receipt.pdf',action:'move',reason:'advisory_destination_ranking',blocked:false,executable:false,review_required:true},
+ {id:'3'.repeat(24),source:'holiday.jpg',destination:'Media/holiday.jpg',action:'move',reason:'destination_collision',blocked:true,executable:false,review_required:true}
+]};
+el('demo').onclick=()=>load(structuredClone(demo));
+el('import').onchange=async event=>{
+ const file=event.target.files[0];if(!file)return;
+ try{if(file.size>8*1024*1024)throw Error('Too large');const next=validate(JSON.parse(await file.text()));load(next);}
+ catch{message('Could not open this file as a valid bounded organisation plan');}
+ finally{event.target.value='';}
+};
+el('mode').onchange=()=>{reviewed.clear();revision++;render();message('Mode changed and review choices cleared');};
+el('clear').onclick=()=>{plan=null;reviewed.clear();revision=0;render();message('Session cleared');};
+el('export').onclick=()=>{
+ if(!plan)return;
+ const report={schema_version:'0.1.0',report_type:'review_choices',inventory_sha256:plan.inventory_sha256,mode:el('mode').value,policy_revision:revision,execution_authorized:false,reviewed_proposals:[...reviewed]};
+ const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='filepilot-review-choices.json';a.click();URL.revokeObjectURL(url);message('Review choices exported without execution permission');
+};
+</script>
+</body>
+</html>

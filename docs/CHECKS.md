@@ -83,3 +83,10 @@ They run the core tests and synthetic PDF extraction tests
 Core jobs omit PDF extraction tests and require no third party packages
 PDF guard tests run even without the parser
 Reports distinguish requested optional tests from omitted tests
+
+## Planning and browser checks
+
+The core suite includes deterministic planner policy and SQLite preference tests
+A separate Chromium job verifies the offline review screen with synthetic plans
+Browser tests check mode changes export boundaries invalid imports markup safety and narrow layouts
+Browser tools are test only dependencies and are not used by the scanner

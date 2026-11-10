@@ -137,3 +137,16 @@ PDF inspection is a separate opt in with an optional pinned local parser
 Document checks run automatically on Linux and macOS
 Encrypted documents are skipped and OCR is not included
 The desktop interface and semantic folder recommendations are later milestones
+
+## Destination and review foundations
+
+I can now create read only plans from scanner reports and explicitly chosen destination folders
+The baseline combines category evidence and lexical overlap without a downloaded model
+The separate policy component covers three autonomy modes but no executor is connected
+Explicit local corrections can be disabled or cleared
+
+The offline review prototype is in frontend index html
+It can show a synthetic demo import a plan and export review choices
+It never changes files and does not replace the planned native macOS app
+
+See [implementation status](docs/IMPLEMENTATION_STATUS.md) and [planning details](docs/PLANNING.md)

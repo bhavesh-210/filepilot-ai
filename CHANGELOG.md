@@ -1,3 +1,12 @@
+# Destination and review foundations
+
+Added local lexical destination ranking and evaluation helpers
+Added read only organization plans with project and collision protection
+Added separate autonomy policy decisions with revision checks
+Added explicit local correction storage with disable and clear controls
+Added an offline browser review prototype and automated browser tests
+Native filesystem execution and macOS integration remain pending
+
 # Document inspection update
 
 Added explicitly enabled PDF inspection in a separate parser process
