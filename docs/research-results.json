@@ -1,0 +1,1452 @@
+{
+  "schema_version": "0.1.0",
+  "experiment": "word_tfidf_logistic_regression_v1",
+  "python": "3.12.14",
+  "dependencies": {
+    "scikit-learn": "1.8.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0"
+  },
+  "configuration": {
+    "word_ngrams": [
+      1,
+      2
+    ],
+    "C": 1.0,
+    "max_iter": 1000,
+    "class_weight": "balanced",
+    "random_state": 42
+  },
+  "research_only": true,
+  "test_split_scored": false,
+  "model_saved": false,
+  "limitation": "Provisional synthetic labels and repeatedly inspected validation data",
+  "datasets": {
+    "ai/datasets/starter-v0.1.0/records.jsonl": {
+      "records_sha256": "2b25ad98d7f6b3b813a123374b00b23d32c554877ab40532f49b6b3abd7fb04b",
+      "results": {
+        "train": {
+          "examples": 64,
+          "rules": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "family_count": 32,
+            "family_mean_accuracy": 1.0,
+            "confusion_labels": [
+              "Development",
+              "Education",
+              "Finance",
+              "Media",
+              "Personal",
+              "Professional",
+              "Software",
+              "Unknown"
+            ],
+            "confusion_matrix": [
+              [
+                8,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                8,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                8,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                8,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                8,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                8,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                8,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                8
+              ]
+            ],
+            "per_category": {
+              "Development": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Education": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Finance": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Media": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Personal": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Professional": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Software": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Unknown": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "accuracy": 1.0,
+              "macro avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 64.0
+              },
+              "weighted avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 64.0
+              }
+            },
+            "errors": []
+          },
+          "ml": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "family_count": 32,
+            "family_mean_accuracy": 1.0,
+            "confusion_labels": [
+              "Development",
+              "Education",
+              "Finance",
+              "Media",
+              "Personal",
+              "Professional",
+              "Software",
+              "Unknown"
+            ],
+            "confusion_matrix": [
+              [
+                8,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                8,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                8,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                8,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                8,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                8,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                8,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                8
+              ]
+            ],
+            "per_category": {
+              "Development": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Education": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Finance": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Media": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Personal": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Professional": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Software": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "Unknown": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 8.0
+              },
+              "accuracy": 1.0,
+              "macro avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 64.0
+              },
+              "weighted avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 64.0
+              }
+            },
+            "errors": []
+          }
+        },
+        "validation": {
+          "examples": 16,
+          "rules": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "family_count": 8,
+            "family_mean_accuracy": 1.0,
+            "confusion_labels": [
+              "Development",
+              "Education",
+              "Finance",
+              "Media",
+              "Personal",
+              "Professional",
+              "Software",
+              "Unknown"
+            ],
+            "confusion_matrix": [
+              [
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                2,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                2
+              ]
+            ],
+            "per_category": {
+              "Development": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Education": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Finance": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Media": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Personal": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Professional": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Software": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Unknown": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "accuracy": 1.0,
+              "macro avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 16.0
+              },
+              "weighted avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 16.0
+              }
+            },
+            "errors": []
+          },
+          "ml": {
+            "accuracy": 0.625,
+            "macro_f1": 0.5625,
+            "family_count": 8,
+            "family_mean_accuracy": 0.625,
+            "confusion_labels": [
+              "Development",
+              "Education",
+              "Finance",
+              "Media",
+              "Personal",
+              "Professional",
+              "Software",
+              "Unknown"
+            ],
+            "confusion_matrix": [
+              [
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                2,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0
+              ]
+            ],
+            "per_category": {
+              "Development": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Education": {
+                "precision": 0.3333333333333333,
+                "recall": 1.0,
+                "f1-score": 0.5,
+                "support": 2.0
+              },
+              "Finance": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Media": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Personal": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1-score": 0.0,
+                "support": 2.0
+              },
+              "Professional": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1-score": 0.0,
+                "support": 2.0
+              },
+              "Software": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Unknown": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1-score": 0.0,
+                "support": 2.0
+              },
+              "accuracy": 0.625,
+              "macro avg": {
+                "precision": 0.5416666666666666,
+                "recall": 0.625,
+                "f1-score": 0.5625,
+                "support": 16.0
+              },
+              "weighted avg": {
+                "precision": 0.5416666666666666,
+                "recall": 0.625,
+                "f1-score": 0.5625,
+                "support": 16.0
+              }
+            },
+            "errors": [
+              [
+                "contract_supplier_draft.pdf",
+                "Professional",
+                "Education"
+              ],
+              [
+                "contract_supplier_final.pdf",
+                "Professional",
+                "Education"
+              ],
+              [
+                "personal_recipes_draft.pdf",
+                "Personal",
+                "Education"
+              ],
+              [
+                "personal_recipes_final.pdf",
+                "Personal",
+                "Education"
+              ],
+              [
+                "document_untitled_draft.txt",
+                "Unknown",
+                "Personal"
+              ],
+              [
+                "document_untitled_final.txt",
+                "Unknown",
+                "Personal"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "ai/datasets/expanded-v0.1.0/records.jsonl": {
+      "records_sha256": "d1accaf73ccb66bffc067ec818f83b1077cc0bcfb60ae70faa7998d0f032d6ee",
+      "results": {
+        "train": {
+          "examples": 96,
+          "rules": {
+            "accuracy": 0.8645833333333334,
+            "macro_f1": 0.8775096525096525,
+            "family_count": 64,
+            "family_mean_accuracy": 0.796875,
+            "confusion_labels": [
+              "Development",
+              "Education",
+              "Finance",
+              "Media",
+              "Personal",
+              "Professional",
+              "Software",
+              "Unknown"
+            ],
+            "confusion_matrix": [
+              [
+                12,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                8,
+                0,
+                0,
+                0,
+                0,
+                0,
+                4
+              ],
+              [
+                0,
+                0,
+                9,
+                0,
+                0,
+                0,
+                0,
+                3
+              ],
+              [
+                0,
+                0,
+                0,
+                12,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                9,
+                0,
+                0,
+                3
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                9,
+                0,
+                3
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                12,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                12
+              ]
+            ],
+            "per_category": {
+              "Development": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Education": {
+                "precision": 1.0,
+                "recall": 0.6666666666666666,
+                "f1-score": 0.8,
+                "support": 12.0
+              },
+              "Finance": {
+                "precision": 1.0,
+                "recall": 0.75,
+                "f1-score": 0.8571428571428571,
+                "support": 12.0
+              },
+              "Media": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Personal": {
+                "precision": 1.0,
+                "recall": 0.75,
+                "f1-score": 0.8571428571428571,
+                "support": 12.0
+              },
+              "Professional": {
+                "precision": 1.0,
+                "recall": 0.75,
+                "f1-score": 0.8571428571428571,
+                "support": 12.0
+              },
+              "Software": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Unknown": {
+                "precision": 0.48,
+                "recall": 1.0,
+                "f1-score": 0.6486486486486487,
+                "support": 12.0
+              },
+              "accuracy": 0.8645833333333334,
+              "macro avg": {
+                "precision": 0.935,
+                "recall": 0.8645833333333333,
+                "f1-score": 0.8775096525096525,
+                "support": 96.0
+              },
+              "weighted avg": {
+                "precision": 0.9349999999999999,
+                "recall": 0.8645833333333334,
+                "f1-score": 0.8775096525096524,
+                "support": 96.0
+              }
+            },
+            "errors": [
+              [
+                "probability_tutorial.pdf",
+                "Education",
+                "Unknown"
+              ],
+              [
+                "chemistry_lab_report.docx",
+                "Education",
+                "Unknown"
+              ],
+              [
+                "DBMS_module_quiz.pdf",
+                "Education",
+                "Unknown"
+              ],
+              [
+                "calculus_revision_notes.md",
+                "Education",
+                "Unknown"
+              ],
+              [
+                "project_kickoff_minutes.docx",
+                "Professional",
+                "Unknown"
+              ],
+              [
+                "candidate_cover_letter.pdf",
+                "Professional",
+                "Unknown"
+              ],
+              [
+                "team_delivery_plan.pptx",
+                "Professional",
+                "Unknown"
+              ],
+              [
+                "electricity_payment_bill.pdf",
+                "Finance",
+                "Unknown"
+              ],
+              [
+                "monthly_payslip_june.pdf",
+                "Finance",
+                "Unknown"
+              ],
+              [
+                "travel_expense_claim.xlsx",
+                "Finance",
+                "Unknown"
+              ],
+              [
+                "my_garden_checklist.txt",
+                "Personal",
+                "Unknown"
+              ],
+              [
+                "family_cooking_recipes.pdf",
+                "Personal",
+                "Unknown"
+              ],
+              [
+                "weekend_hiking_plan.docx",
+                "Personal",
+                "Unknown"
+              ]
+            ]
+          },
+          "ml": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "family_count": 64,
+            "family_mean_accuracy": 1.0,
+            "confusion_labels": [
+              "Development",
+              "Education",
+              "Finance",
+              "Media",
+              "Personal",
+              "Professional",
+              "Software",
+              "Unknown"
+            ],
+            "confusion_matrix": [
+              [
+                12,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                12,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                12,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                12,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                12,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                12,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                12,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                12
+              ]
+            ],
+            "per_category": {
+              "Development": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Education": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Finance": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Media": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Personal": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Professional": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Software": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "Unknown": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 12.0
+              },
+              "accuracy": 1.0,
+              "macro avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 96.0
+              },
+              "weighted avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 96.0
+              }
+            },
+            "errors": []
+          }
+        },
+        "validation": {
+          "examples": 16,
+          "rules": {
+            "accuracy": 1.0,
+            "macro_f1": 1.0,
+            "family_count": 8,
+            "family_mean_accuracy": 1.0,
+            "confusion_labels": [
+              "Development",
+              "Education",
+              "Finance",
+              "Media",
+              "Personal",
+              "Professional",
+              "Software",
+              "Unknown"
+            ],
+            "confusion_matrix": [
+              [
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                2,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                2
+              ]
+            ],
+            "per_category": {
+              "Development": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Education": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Finance": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Media": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Personal": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Professional": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Software": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Unknown": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "accuracy": 1.0,
+              "macro avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 16.0
+              },
+              "weighted avg": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 16.0
+              }
+            },
+            "errors": []
+          },
+          "ml": {
+            "accuracy": 0.875,
+            "macro_f1": 0.8333333333333333,
+            "family_count": 8,
+            "family_mean_accuracy": 0.875,
+            "confusion_labels": [
+              "Development",
+              "Education",
+              "Finance",
+              "Media",
+              "Personal",
+              "Professional",
+              "Software",
+              "Unknown"
+            ],
+            "confusion_matrix": [
+              [
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                2,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0
+              ]
+            ],
+            "per_category": {
+              "Development": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Education": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Finance": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Media": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Personal": {
+                "precision": 0.5,
+                "recall": 1.0,
+                "f1-score": 0.6666666666666666,
+                "support": 2.0
+              },
+              "Professional": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Software": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 2.0
+              },
+              "Unknown": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1-score": 0.0,
+                "support": 2.0
+              },
+              "accuracy": 0.875,
+              "macro avg": {
+                "precision": 0.8125,
+                "recall": 0.875,
+                "f1-score": 0.8333333333333333,
+                "support": 16.0
+              },
+              "weighted avg": {
+                "precision": 0.8125,
+                "recall": 0.875,
+                "f1-score": 0.8333333333333333,
+                "support": 16.0
+              }
+            },
+            "errors": [
+              [
+                "document_untitled_draft.txt",
+                "Unknown",
+                "Personal"
+              ],
+              [
+                "document_untitled_final.txt",
+                "Unknown",
+                "Personal"
+              ]
+            ]
+          }
+        }
+      }
+    }
+  }
+}

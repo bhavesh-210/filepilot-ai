@@ -1,0 +1,2 @@
+# Optional research dependencies; scanner does not require these.
+scikit-learn==1.8.0

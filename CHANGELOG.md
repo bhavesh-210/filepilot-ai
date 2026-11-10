@@ -1,5 +1,12 @@
 # Changelog
 
+## Compare the first local classifier
+
+- Add an optional TF IDF and Logistic Regression experiment
+- Fit on training data only and leave the test split unscored
+- Record category metrics family counts confusion matrices and mistakes
+- Keep experimental predictions separate from the scanner
+
 ## Check the synthetic datasets
 
 - Add the starter and expanded synthetic examples

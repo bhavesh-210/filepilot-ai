@@ -12,7 +12,7 @@ These steps show what has been added here rather than when the local work was or
 - [x] Add synthetic test fixtures and automated tests
 - [x] Add category rules and the JSON report format
 - [x] Add dataset validation and checks for split leakage
-- [ ] Add the local ML baseline and its evaluation results
+- [x] Add the local ML baseline and its evaluation results
 - [ ] Record the experiments with uncertain predictions
 - [ ] Add one command to run project checks
 - [x] Run the checks automatically on GitHub
