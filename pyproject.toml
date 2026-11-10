@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
+documents = ["pypdf==7.0.1"]
 research = ["scikit-learn==1.8.0"]
 
 [project.scripts]

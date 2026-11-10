@@ -1,3 +1,10 @@
+# Document inspection update
+
+Added explicitly enabled PDF inspection in a separate parser process
+Added synthetic PDF tests for encrypted malformed empty and oversized documents
+Added optional document jobs on Linux and macOS
+The scanner remains metadata only and no source documents are modified
+
 # Changelog
 
 ## Inspect one explicitly selected text document

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import stat
 import sys
+import subprocess
 from .scanner import EXCLUDED, MARKERS
 
 TEXT_EXTENSIONS = {".txt", ".md", ".csv", ".log"}
@@ -117,13 +118,39 @@ def _read_snapshot(root, parts, max_bytes):
         os.close(fd)
 
 
-def inspect_document(root, relative_path, *, include_text=False, max_bytes=262144, max_chars=MAX_CHARS):
+def _inspect_pdf(payload, max_pages, max_chars):
+    if not payload.startswith(b"%PDF-"):
+        return dict(status="skipped", reason="invalid_pdf_signature")
+    try:
+        process = subprocess.run(
+            [sys.executable, "-I", "-B", str(Path(__file__).with_name("_pdf_worker.py")), str(max_pages), str(max_chars)],
+            input=payload, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            env={"PATH": os.defpath}, close_fds=True, timeout=5)
+        if process.returncode or len(process.stdout) > 200000:
+            return dict(status="skipped", reason="pdf_worker_failed")
+        result = json.loads(process.stdout)
+        if not isinstance(result, dict) or result.get("status") not in {"ok", "no_text", "skipped"}:
+            raise ValueError("Invalid worker response")
+        if result["status"] in {"ok", "no_text"}:
+            if not isinstance(result.get("text"), str) or len(result["text"]) > max_chars:
+                raise ValueError("Invalid worker text")
+        return result
+    except subprocess.TimeoutExpired:
+        return dict(status="skipped", reason="pdf_timeout")
+    except (OSError, ValueError):
+        return dict(status="skipped", reason="pdf_worker_failed")
+
+
+def inspect_document(root, relative_path, *, include_text=False, max_bytes=262144, max_chars=MAX_CHARS,
+                     enable_pdf=False, max_pages=5):
     if type(max_bytes) is not int or not 1 <= max_bytes <= MAX_BYTES:
         raise ValueError("max_bytes must be between 1 and 2097152")
     if type(max_chars) is not int or not 1 <= max_chars <= MAX_CHARS:
         raise ValueError("max_chars must be between 1 and 16000")
     if type(include_text) is not bool:
         raise ValueError("include_text must be boolean")
+    if type(enable_pdf) is not bool or type(max_pages) is not int or not 1 <= max_pages <= 20:
+        raise ValueError("PDF options must include a boolean and between 1 and 20 pages")
     relative_path = os.fspath(relative_path)
     if not relative_path or relative_path.startswith("/") or "\\" in relative_path or "\x00" in relative_path:
         raise ValueError("Provide a relative document path")
@@ -140,7 +167,11 @@ def inspect_document(root, relative_path, *, include_text=False, max_bytes=26214
     if any(_excluded(part) for part in parts):
         result["reason"] = "excluded_path"
         return result
-    if Path(parts[-1]).suffix.lower() not in TEXT_EXTENSIONS:
+    is_pdf = Path(parts[-1]).suffix.lower() == ".pdf"
+    if is_pdf and not enable_pdf:
+        result["reason"] = "pdf_not_enabled"
+        return result
+    if not is_pdf and Path(parts[-1]).suffix.lower() not in TEXT_EXTENSIONS:
         result["reason"] = "unsupported_type"
         return result
     try:
@@ -150,6 +181,14 @@ def inspect_document(root, relative_path, *, include_text=False, max_bytes=26214
         return result
     except OSError as exc:
         result.update(reason="unavailable_or_unsafe_path", error_code=type(exc).__name__)
+        return result
+    if is_pdf:
+        parsed = _inspect_pdf(payload, max_pages, max_chars)
+        text = parsed.pop("text", "")
+        result.update(parsed, parser_process_used=True, characters=len(text))
+        result["limits"]["max_pages"] = max_pages
+        if include_text and result["status"] in {"ok", "no_text"}:
+            result.update(text=text, text_included=True)
         return result
     encoding = "utf-16" if payload.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)) else "utf-8-sig"
     try:
@@ -174,10 +213,13 @@ def main(argv=None):
     parser.add_argument("--include-text", action="store_true", help="Include extracted text in the local JSON report")
     parser.add_argument("--max-bytes", type=int, default=262144)
     parser.add_argument("--max-chars", type=int, default=MAX_CHARS)
+    parser.add_argument("--pdf", action="store_true", help="Enable optional PDF inspection")
+    parser.add_argument("--max-pages", type=int, default=5)
     args = parser.parse_args(argv)
     try:
         report = inspect_document(args.root, args.path, include_text=args.include_text,
-                                  max_bytes=args.max_bytes, max_chars=args.max_chars)
+                                  max_bytes=args.max_bytes, max_chars=args.max_chars,
+                                  enable_pdf=args.pdf, max_pages=args.max_pages)
     except (OSError, ValueError) as exc:
         print(json.dumps(dict(error=type(exc).__name__, reason=str(exc))), file=sys.stderr)
         return 2
