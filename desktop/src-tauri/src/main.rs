@@ -211,11 +211,11 @@ fn review_destination(
     category: String,
     state: tauri::State<Shared>,
 ) -> Result<filepilot_core::Proposal, String> {
-    state
-        .engine
-        .lock()
-        .map_err(|_| "Engine lock failed")?
-        .review_destination(proposal_id, category)
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    let proposal = engine.review_destination(proposal_id, category)?;
+    engine.permission_epoch = epoch;
+    Ok(proposal)
 }
 #[tauri::command]
 async fn duplicates(
@@ -402,8 +402,10 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                 continue;
             }
             last = Instant::now();
+            let mut applied = false;
+            let mut applied_roots = HashSet::new();
             for root in roots {
-                let scan = state.engine.lock().unwrap().scan(root.id);
+                let scan = state.engine.lock().unwrap().scan_background(root.id);
                 match scan {
                     Ok(inventory) => {
                         for p in inventory.proposals {
@@ -413,12 +415,18 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                                     break;
                                 }
                                 let expected = engine.permission_epoch;
-                                if let Err(error) = engine.apply_guarded(p.id, false, || {
+                                match engine.apply_guarded(p.id, false, || {
                                     state.epoch.load(Ordering::SeqCst) == expected
                                 }) {
-                                    if !error.contains("approval") && !error.contains("rules") {
-                                        *state.notice.lock().unwrap() =
-                                            format!("Automatic action paused {error}");
+                                    Ok(_) => {
+                                        applied = true;
+                                        applied_roots.insert(root.id);
+                                    }
+                                    Err(error) => {
+                                        if !error.contains("approval") && !error.contains("rules") {
+                                            *state.notice.lock().unwrap() =
+                                                format!("Automatic action paused {error}");
+                                        }
                                     }
                                 }
                             }
@@ -429,7 +437,10 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                     }
                 }
             }
-            let _ = app.emit("filepilot-updated", ());
+            let _ = app.emit(
+                "filepilot-updated",
+                serde_json::json!({"applied":applied,"root_ids":applied_roots}),
+            );
         }
     });
 }

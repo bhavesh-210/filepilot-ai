@@ -70,6 +70,9 @@ A storage device filesystem or process failure can exceed the durability guarant
 The notify recommended backend uses macOS FSEvents on macOS
 Events trigger reconciliation and a thirty second sweep covers missed events
 The event queue is bounded and events are coalesced
+Unchanged preview identifiers survive reconciliation
+A manually selected destination remains manual until explicitly approved
+Changed source identities expire earlier preview actions
 The closed window is hidden while the app continues running
 Click the Dock icon to reopen it
 Quit stops the process

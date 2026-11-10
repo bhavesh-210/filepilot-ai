@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1]
 MOCK='''
 window.__TAURI_INTERNALS__={
- transformCallback:()=>1, unregisterCallback:()=>{},
+ transformCallback:(handler)=>{window.testTauriEvent=handler;return 1;}, unregisterCallback:()=>{},
  invoke:async(command,args)=>{
   if(command==='plugin:event|listen')return 1;
   if(command==='plugin:event|unlisten')return null;
@@ -106,6 +106,18 @@ class DesktopBrowserTests(unittest.TestCase):
         page.get_by_role('button',name='Remember this destination').click()
         page.get_by_text('Explicit file example saved future nearest matches will still require review',exact=True).wait_for()
         self.assertEqual(page.get_by_text('No file operations yet',exact=True).count(),1)
+        self.assertFalse(self.errors,self.errors)
+
+    def test_unchanged_background_refresh_preserves_the_preview(self):
+        page=self.open(True)
+        page.get_by_role('button',name='demo',exact=True).click()
+        page.get_by_role('button',name='Scan and preview').click()
+        page.get_by_role('button',name='Approve this move').wait_for()
+        page.evaluate("window.testTauriEvent({payload:{applied:false}})")
+        self.assertTrue(page.get_by_role('button',name='Approve this move').is_visible())
+        page.evaluate("window.testTauriEvent({payload:{applied:true}})")
+        page.get_by_text('Background organization updated files scan for a fresh preview',exact=True).wait_for()
+        self.assertEqual(page.get_by_role('button',name='Approve this move').count(),0)
         self.assertFalse(self.errors,self.errors)
 
 if __name__=='__main__':unittest.main(verbosity=2)

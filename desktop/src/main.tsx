@@ -100,10 +100,24 @@ function App() {
   useEffect(() => {
     refresh().catch((error) => setMessage(String(error)));
     if (!native) return;
-    const listening = listen("filepilot-updated", () => {
-      refresh().catch(() => {});
-      setInventory(null);
-    });
+    const listening = listen<{ applied: boolean; root_ids?: number[] }>(
+      "filepilot-updated",
+      (event) => {
+        refresh().catch(() => {});
+        if (event.payload.applied) {
+          setInventory((current) =>
+            current &&
+            event.payload.root_ids &&
+            !event.payload.root_ids.includes(current.root_id)
+              ? current
+              : null,
+          );
+          setMessage(
+            "Background organization updated files scan for a fresh preview",
+          );
+        }
+      },
+    );
     return () => {
       listening.then((stop) => stop());
     };

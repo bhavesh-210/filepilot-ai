@@ -77,6 +77,7 @@ pub struct Proposal {
     pub revision: u64,
     pub rename: bool,
     pub certain: bool,
+    pub manual_destination: bool,
     pub snapshot: Identity,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -564,6 +565,7 @@ impl Engine {
                     revision: self.settings.revision,
                     rename: proposed_name != name,
                     certain: category != "Unknown" && !example_used,
+                    manual_destination: false,
                     snapshot,
                 };
                 self.next_id = self
@@ -581,6 +583,55 @@ impl Engine {
         }
         for p in &inventory.proposals {
             self.pending.insert(p.id, p.clone());
+        }
+        Ok(inventory)
+    }
+    pub fn scan_background(&mut self, id: i64) -> Result<Inventory> {
+        let mut previous = self
+            .pending
+            .values()
+            .filter(|p| p.root_id == id)
+            .map(|p| (p.source.clone(), p.clone()))
+            .collect::<HashMap<_, _>>();
+        let mut inventory = self.scan(id)?;
+        let complete = inventory.errors.is_empty();
+        for fresh in &mut inventory.proposals {
+            let Some(old) = previous.remove(&fresh.source) else {
+                continue;
+            };
+            if old.snapshot != fresh.snapshot || old.revision != fresh.revision {
+                continue;
+            }
+            let generated = fresh.id;
+            if old.manual_destination {
+                *fresh = old;
+                if !complete {
+                    fresh.blocked = true;
+                    fresh.reason = "Incomplete scan requires review and reconciliation".into();
+                } else if let Some(destination) = &fresh.destination {
+                    match self.parent(id, destination) {
+                        Ok((parent, name)) => {
+                            fresh.blocked = fs::exists(&parent, &name).unwrap_or(true);
+                            if fresh.blocked {
+                                fresh.reason = "Destination already exists".into();
+                            } else {
+                                fresh.reason="User selected destination still requires explicit move approval".into();
+                            }
+                        }
+                        Err(_) => {
+                            fresh.blocked = true;
+                            fresh.reason =
+                                "Selected destination is unavailable or protected".into();
+                        }
+                    }
+                } else {
+                    fresh.blocked = true;
+                }
+            } else {
+                fresh.id = old.id;
+            }
+            self.pending.remove(&generated);
+            self.pending.insert(fresh.id, fresh.clone());
         }
         Ok(inventory)
     }
@@ -741,6 +792,7 @@ impl Engine {
         value.category = category;
         value.destination = Some(destination);
         value.certain = false;
+        value.manual_destination = true;
         value.blocked = false;
         value.reason = "User selected destination still requires explicit move approval".into();
         Ok(value.clone())

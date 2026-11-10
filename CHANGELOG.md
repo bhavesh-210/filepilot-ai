@@ -1,3 +1,10 @@
+# Stable background previews
+
+Preserved unchanged preview actions during background reconciliation
+Kept manually selected destinations behind explicit approval
+Expired previews when the source identity changes
+Cancelled older pending work before changing a reviewed destination
+
 # Native document and Trash workflows
 
 Added bounded PDFKit inspection in a separate bundled process

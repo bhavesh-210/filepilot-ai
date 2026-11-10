@@ -568,3 +568,68 @@ fn examples_do_not_override_explicit_preferences_or_match_only_extensions() {
     assert_eq!(p.destination.as_deref(), Some("Personal/lecture.txt"));
     assert!(p.certain);
 }
+#[test]
+fn background_sweeps_preserve_unchanged_preview_ids() {
+    let (d, mut engine, id) = setup();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.txt")
+        .unwrap();
+    let next = engine
+        .scan_background(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.txt")
+        .unwrap();
+    assert_eq!(next.id, p.id);
+    engine.apply(p.id, true).unwrap();
+    assert!(d.path().join("Education/lecture.txt").exists());
+}
+#[test]
+fn background_sweeps_keep_manual_destinations_manual() {
+    let (d, mut engine, id) = setup();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.txt")
+        .unwrap();
+    engine.review_destination(p.id, "Finance".into()).unwrap();
+    engine.mark_initial_reviewed(id).unwrap();
+    let next = engine
+        .scan_background(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.txt")
+        .unwrap();
+    assert_eq!(next.id, p.id);
+    assert_eq!(next.destination.as_deref(), Some("Finance/lecture.txt"));
+    assert!(next.manual_destination && !next.certain);
+    assert!(engine.apply(p.id, false).is_err());
+    engine.apply(p.id, true).unwrap();
+    assert!(d.path().join("Finance/lecture.txt").exists());
+}
+#[test]
+fn changed_sources_expire_even_when_background_preserves_a_preview() {
+    let (d, mut engine, id) = setup();
+    let p = engine
+        .scan(id)
+        .unwrap()
+        .proposals
+        .into_iter()
+        .find(|p| p.source == "lecture.txt")
+        .unwrap();
+    fs::write(d.path().join("lecture.txt"), "changed").unwrap();
+    engine.scan_background(id).unwrap();
+    assert!(engine.apply(p.id, true).is_err());
+    assert_eq!(
+        fs::read_to_string(d.path().join("lecture.txt")).unwrap(),
+        "changed"
+    );
+}
