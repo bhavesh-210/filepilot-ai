@@ -185,3 +185,5 @@ https://doc.rust-lang.org/std/fs/fn.rename.html
 
 https://developer.apple.com/documentation/pdfkit/pdfdocument
 https://developer.apple.com/documentation/foundation/filemanager/searchpathdirectory
+
+See SETUP_WORKFLOW for the one time setup contract and current structure planning limits

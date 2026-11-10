@@ -125,3 +125,6 @@ It also checks preservation of nested collections project and symlink destinatio
 The React suite includes 13 synthetic workflows covering one time setup automatic inbox population manual approval Undo pause settings invalidation local inspection Trash cancellation learning untrusted names and small screen navigation
 Screenshots of the synthetic overview review and setup screens are saved as a workflow artifact
 These browser tests mock the native bridge and do not prove actual macOS permission behavior
+
+The additional preference persistence failure test verifies that a failed policy revision write rolls back the structure preference too
+The native core now contains 58 tests in total
