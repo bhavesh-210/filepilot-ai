@@ -1,5 +1,12 @@
 # Changelog
 
+## Prepare a separate review pool
+
+- Add 40 unlabeled synthetic examples without model predictions
+- Validate reviewer origin evidence and review notes
+- Keep pending labels separate from training data
+- Avoid claiming an independent final test
+
 ## Measure uncertain predictions
 
 - Record coverage wrong suggestions and review counts
