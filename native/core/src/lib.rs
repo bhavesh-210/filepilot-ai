@@ -480,6 +480,86 @@ impl Engine {
         self.pending.remove(&id);
         Ok(operation)
     }
+    pub fn duplicates(&self, id: i64) -> Result<serde_json::Value> {
+        let root = self.roots.get(&id).ok_or("Folder is not authorized")?;
+        let base = Path::new(&root.path);
+        let mut stack = vec![(fs::root(base).map_err(message)?, String::new(), 0)];
+        let mut sizes: HashMap<u64, Vec<(String, Identity)>> = HashMap::new();
+        let mut entries = 0;
+        let mut partial = false;
+        'walk: while let Some((directory, relative, depth)) = stack.pop() {
+            if fs::project(directory.as_raw_fd())
+                || fs::dataless(directory.as_raw_fd()).map_err(message)?
+            {
+                continue;
+            }
+            for name in fs::names(&directory).map_err(message)? {
+                entries += 1;
+                if entries > 10000 {
+                    partial = true;
+                    break 'walk;
+                }
+                if fs::excluded(&name) {
+                    continue;
+                }
+                let path = if relative.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{relative}/{name}")
+                };
+                if let Ok(child) = fs::child_directory(&directory, &name) {
+                    if depth < 32 {
+                        stack.push((child, path, depth + 1));
+                    } else {
+                        partial = true;
+                    }
+                    continue;
+                }
+                if let Ok(identity) = fs::identity(&directory, &name) {
+                    if identity.size <= 64 * 1024 * 1024 {
+                        sizes
+                            .entry(identity.size)
+                            .or_default()
+                            .push((path, identity));
+                    } else {
+                        partial = true;
+                    }
+                }
+            }
+        }
+        let mut hashes: HashMap<String, Vec<String>> = HashMap::new();
+        let mut bytes = 0u64;
+        for (_, files) in sizes {
+            if files.len() < 2 {
+                continue;
+            }
+            for (path, identity) in files {
+                if bytes + identity.size > 256 * 1024 * 1024 {
+                    partial = true;
+                    continue;
+                }
+                let (directory, name) = fs::parent(base, &path).map_err(message)?;
+                match fs::digest(&directory, &name, &identity) {
+                    Ok(hash) => {
+                        bytes += identity.size;
+                        hashes.entry(hash).or_default().push(path);
+                    }
+                    Err(_) => partial = true,
+                }
+            }
+        }
+        let mut groups = hashes
+            .into_values()
+            .filter(|paths| paths.len() > 1)
+            .collect::<Vec<_>>();
+        for group in &mut groups {
+            group.sort();
+        }
+        groups.sort();
+        Ok(
+            serde_json::json!({"groups":groups,"bytes_hashed":bytes,"partial":partial,"read_only":true,"deletion_authorized":false}),
+        )
+    }
     pub fn history(&self) -> Result<Vec<Operation>> {
         let mut q=self.db.prepare("SELECT id,root_id,source,destination,state FROM operations ORDER BY id DESC LIMIT 500").map_err(message)?;
         let rows = q

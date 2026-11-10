@@ -44,6 +44,10 @@ pub fn excluded(name: &str) -> bool {
             ".bundle",
             ".photoslibrary",
             ".keychain-db",
+            ".crdownload",
+            ".part",
+            ".download",
+            ".tmp",
         ]
         .iter()
         .any(|x| name.to_lowercase().ends_with(x))

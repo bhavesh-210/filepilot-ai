@@ -93,6 +93,21 @@ async fn scan(
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn duplicates(
+    root_id: i64,
+    state: tauri::State<'_, Shared>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine
+            .lock()
+            .map_err(|_| "Engine lock failed")?
+            .duplicates(root_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 fn create_categories(root_id: i64, state: tauri::State<Shared>) -> Result<(), String> {
     state
         .engine
@@ -206,10 +221,10 @@ async fn login_item(enabled: bool, app: tauri::AppHandle) -> Result<serde_json::
 }
 fn monitor(app: tauri::AppHandle, state: Shared) {
     std::thread::spawn(move || {
-        let (send, recv) = std::sync::mpsc::channel();
+        let (send, recv) = std::sync::mpsc::sync_channel(1);
         let mut watcher =
             notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-                let _ = send.send(event);
+                let _ = send.try_send(event);
             })
             .ok();
         let mut watched = HashSet::<PathBuf>::new();
@@ -226,10 +241,11 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
             };
             let roots = {
                 let engine = state.engine.lock().unwrap();
-                if !engine.settings.monitoring {
-                    continue;
+                if engine.settings.monitoring {
+                    engine.roots.values().cloned().collect::<Vec<_>>()
+                } else {
+                    Vec::new()
                 }
-                engine.roots.values().cloned().collect::<Vec<_>>()
             };
             let wanted = roots
                 .iter()
@@ -280,6 +296,7 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
 fn main() {
     let application = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            duplicates,
             snapshot,
             choose_folder,
             scan,

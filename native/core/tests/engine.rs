@@ -187,3 +187,13 @@ fn overlapping_and_symlink_roots_rejected() {
     std::os::unix::fs::symlink(d.path(), &link).unwrap();
     assert!(e.authorize(link, "test".into()).is_err());
 }
+#[test]
+fn duplicate_groups_are_read_only() {
+    let (d, e, id) = setup();
+    fs::write(d.path().join("second.txt"), "synthetic").unwrap();
+    let report = e.duplicates(id).unwrap();
+    assert_eq!(report["groups"].as_array().unwrap().len(), 1);
+    assert_eq!(report["deletion_authorized"], false);
+    assert!(d.path().join("lecture.txt").exists());
+    assert!(d.path().join("second.txt").exists());
+}
