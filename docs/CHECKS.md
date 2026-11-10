@@ -158,7 +158,13 @@ An explicit reviewed destination is retained for the unchanged file so a manuall
 ## Main locations update
 
 See [workspace behavior and limits](WORKSPACE.md) for approved routing cross location transfers and the two item focus
-The core suite now has 115 passing synthetic tests locally
-The React suite includes 31 workflows and requires the current browser CI result
+The core suite has 115 passing synthetic tests on Linux and macOS
+All 31 React browser workflows pass against the production frontend and synthetic native bridge
 Real Mac acceptance must check both grants folder picker renewals route previews per location counts file and folder transfer Undo and sleep wake reconciliation
 Use disposable sibling test roots for these checks
+
+The multi location disposable pack contains 48 synthetic files and 35 folders before its inventory manifest is included
+A native diagnostic on a separate copy routed 30 files verified a three file whole folder transfer and Undo and preserved both source projects
+The ambiguous puzzle and partial PDF stayed untouched
+This diagnostic is not a held out accuracy benchmark and does not promise two pending files on other folders
+The current project workflow also passed all eight Python research PDF and browser jobs
