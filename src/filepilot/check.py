@@ -26,7 +26,7 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def run_test_suite(root, with_ml):
+def run_test_suite(root, with_ml, with_pdf=False):
     discovered = unittest.TestLoader().discover(str(root / "tests"))
     def flatten(suite):
         for item in suite:
@@ -35,7 +35,9 @@ def run_test_suite(root, with_ml):
             else:
                 yield item
     all_tests = list(flatten(discovered))
-    tests = [t for t in all_tests if with_ml or not t.id().startswith("test_research_baseline.")]
+    tests = [t for t in all_tests
+             if (with_ml or not t.id().startswith("test_research_baseline."))
+             and (with_pdf or not t.id().startswith("test_pdf.PdfExtractionTests."))]
     require(bool(tests), "No tests were discovered")
     result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=2).run(unittest.TestSuite(tests))
     return dict(passed=result.wasSuccessful(), tests_run=result.testsRun, skipped=len(result.skipped),
@@ -137,7 +139,7 @@ def evaluate_ml(root, datasets):
                 test_split_scored=False, model_saved=False)
 
 
-def collect_checks(root, with_ml=False, include_tests=True):
+def collect_checks(root, with_ml=False, include_tests=True, with_pdf=False):
     root = Path(root).resolve(strict=True)
     checks = []
     def record(name, operation):
@@ -151,7 +153,7 @@ def collect_checks(root, with_ml=False, include_tests=True):
             return None
     record("package metadata", lambda: check_metadata(root))
     if include_tests:
-        record("automated tests", lambda: run_test_suite(root, with_ml))
+        record("automated tests", lambda: run_test_suite(root, with_ml, with_pdf))
     datasets = {}
     for name in DATASETS:
         def load_and_validate(name=name):
@@ -172,12 +174,15 @@ def collect_checks(root, with_ml=False, include_tests=True):
     record("development review pool", review_summary)
     record("recorded uncertainty report", lambda: check_recorded_uncertainty(root))
     record("synthetic CLI scan", lambda: check_cli(root))
+    if with_pdf:
+        record("optional PDF dependency", lambda: dict(pypdf=importlib.metadata.version("pypdf")))
     if with_ml:
         record("fresh local ML diagnostics", lambda: evaluate_ml(root, datasets))
     else:
         checks.append(dict(name="fresh local ML diagnostics", status="not_requested",
                            reason="Use --with-ml with optional research dependencies installed"))
-    return dict(schema_version="0.1.0", mode="research" if with_ml else "core",
+    return dict(schema_version="0.1.0", mode="research" if with_ml else ("documents" if with_pdf else "core"),
+                pdf_checks_requested=with_pdf,
                 python=platform.python_version(), passed=all(c["status"] != "failed" for c in checks),
                 test_split_scored=False, checks=checks,
                 limitations=["Synthetic labels remain provisional", "Human review is pending",
@@ -187,8 +192,9 @@ def collect_checks(root, with_ml=False, include_tests=True):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--with-ml", action="store_true", help="Also run optional synthetic research diagnostics")
+    parser.add_argument("--with-pdf", action="store_true", help="Also run optional PDF extraction tests")
     args = parser.parse_args(argv)
-    report = collect_checks(Path(__file__).resolve().parents[2], args.with_ml)
+    report = collect_checks(Path(__file__).resolve().parents[2], args.with_ml, with_pdf=args.with_pdf)
     print(json.dumps(report, indent=2))
     return 0 if report["passed"] else 1
 

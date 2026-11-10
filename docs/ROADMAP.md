@@ -62,7 +62,7 @@ The scanner stays read only until the next milestone is designed and tested
 - [x] Add explicit local text extraction with bounded input and output
 - [x] Keep extracted text out of reports unless requested
 - [x] Test path boundaries file changes and untrusted text
-- [ ] Add optional PDF extraction in a separate bounded worker
-- [ ] Run document checks on GitHub with the optional parser installed
+- [x] Add optional PDF extraction in a separate bounded worker
+- [x] Run document checks on GitHub with the optional parser installed
 
 This milestone extracts text rather than claiming semantic understanding or automatic organisation

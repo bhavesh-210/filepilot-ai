@@ -132,3 +132,8 @@ The metadata scanner stays unchanged and extracted text is hidden from reports u
 The current text formats are text Markdown CSV and log files
 
 See docs/CONTENT.md for the supported formats limits and safety boundaries
+
+PDF inspection is a separate opt in with an optional pinned local parser
+Document checks run automatically on Linux and macOS
+Encrypted documents are skipped and OCR is not included
+The desktop interface and semantic folder recommendations are later milestones

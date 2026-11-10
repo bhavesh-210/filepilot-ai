@@ -75,3 +75,11 @@ The shell keeps pipeline failures visible even when the report is copied through
 An unsuccessful project check fails its GitHub job
 
 The research job validates the experimental pipeline rather than a production model
+
+## Document checks
+
+The document jobs install the pinned optional parser on Linux and macOS
+They run the core tests and synthetic PDF extraction tests
+Core jobs omit PDF extraction tests and require no third party packages
+PDF guard tests run even without the parser
+Reports distinguish requested optional tests from omitted tests
