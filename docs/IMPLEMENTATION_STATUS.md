@@ -94,3 +94,14 @@ The core suite has 115 passing synthetic tests on Linux and macOS
 All 31 React browser workflows pass against the production frontend and synthetic native bridge
 Real Mac acceptance must check both grants folder picker renewals route previews per location counts file and folder transfer Undo and sleep wake reconciliation
 Use disposable sibling test roots for these checks
+
+## Unified cleanup preset build
+
+Implemented combined editable cleanup previews file kind and year presets optional UTC modification date prefixes saved preset automation and persistent cleanup run Undo
+The UI now uses a restrained light system style with compact controls and a file table
+The preview supports up to one hundred candidate files from up to sixteen selected roots
+Destinations in this workflow stay inside each source root and existing cross root transfers remain separate
+Unsupported kinds stay unselected by default
+Created directories are retained when undoing a cleanup run
+Content based vendor or subject naming natural language planning OCR and general semantic folder generation remain unimplemented
+See CLEANUP for exact behavior
