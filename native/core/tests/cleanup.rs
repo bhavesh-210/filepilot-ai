@@ -308,3 +308,33 @@ fn run_membership_failure_prevents_the_filesystem_move() {
     assert!(root.join("lecture.txt").exists());
     assert!(!root.join("Documents/lecture.txt").exists());
 }
+#[test]
+fn failed_cleanup_does_not_enable_future_automation() {
+    let (d, mut e, id) = setup();
+    let p = e.prepare_cleanup(profile(id)).unwrap();
+    write(d.path(), "Documents/lecture.txt");
+    assert!(e
+        .apply_cleanup_with_profile(
+            p.token,
+            vec![(0, p.rows[0].destination.clone())],
+            true,
+            || true
+        )
+        .is_err());
+    assert!(e.saved_cleanup_profile().unwrap().is_none());
+}
+#[test]
+fn successful_cleanup_can_save_the_approved_preset() {
+    let (_d, mut e, id) = setup();
+    let p = e.prepare_cleanup(profile(id)).unwrap();
+    let r = e
+        .apply_cleanup_with_profile(
+            p.token,
+            vec![(0, p.rows[0].destination.clone())],
+            true,
+            || true,
+        )
+        .unwrap();
+    assert_eq!(r.applied, 1);
+    assert!(e.saved_cleanup_profile().unwrap().is_some());
+}

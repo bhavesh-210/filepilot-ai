@@ -817,7 +817,7 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
             last = Instant::now();
             let mut applied = false;
             let mut applied_roots = HashSet::new();
-            for root in roots {
+            for root in &roots {
                 let scan = {
                     let mut engine = state.engine.lock().unwrap();
                     let expected = engine.permission_epoch;
