@@ -171,8 +171,10 @@ The current project workflow also passed all eight Python research PDF and brows
 
 ## Unified cleanup validation
 
-The current core suite has 133 passing tests on Linux and macOS
+The current core suite has 135 passing tests on Linux and macOS
 The production React browser suite has 35 passing workflows with synthetic IPC
 The cleanup scenarios cover immutable preview selected rows editable destinations kind and year paths modification date renaming changed files collision boundaries permission changes saved profiles unknown formats grouped Undo and journal membership failures
 The UI screenshots include the new Organize workflow and light appearance
 The Mac universal build and real installed app acceptance are separate checks
+
+Automatic cleanup regression checks keep oversized and newly changing files out of automatic selection while other eligible files continue

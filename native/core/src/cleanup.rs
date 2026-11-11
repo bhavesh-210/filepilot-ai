@@ -241,7 +241,15 @@ impl Engine {
                     unchanged += 1;
                     continue;
                 }
-                let mut blocked = if p.manual_destination {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map_err(message)?
+                    .as_secs() as i64;
+                let mut blocked = if p.snapshot.size > 64 * 1024 * 1024 {
+                    Some("File exceeds the supported move size")
+                } else if now.saturating_sub(p.snapshot.mtime) < 10 {
+                    Some("Wait until the file is stable")
+                } else if p.manual_destination {
                     Some("A manually selected destination requires approval")
                 } else if kind(&p.source) == "Other" {
                     Some("Unrecognized file kind keep in place unless selected")

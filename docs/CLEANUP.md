@@ -3,7 +3,7 @@
 Organize combines eligible scanner proposals from up to sixteen authorized initially reviewed locations
 It is a bounded deterministic planning workflow rather than a new semantic model
 Existing matching collections explicit Keep here decisions coding projects and protected entries remain preserved
-The preview supports up to one hundred candidate files and leaves unrecognized kinds unselected
+The preview supports up to one hundred candidate files and leaves unrecognized kinds oversized files and files modified within ten seconds unselected
 
 Choose file kind or file kind then year
 Kinds include documents PDFs images audio video spreadsheets archives installers and Other

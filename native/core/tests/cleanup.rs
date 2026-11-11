@@ -338,3 +338,49 @@ fn successful_cleanup_can_save_the_approved_preset() {
     assert_eq!(r.applied, 1);
     assert!(e.saved_cleanup_profile().unwrap().is_some());
 }
+#[test]
+fn automatic_layout_skips_oversized_files_without_blocking_other_files() {
+    let (d, mut e, id) = setup();
+    let path = d.path().join("aaa large.txt");
+    let f = File::create(&path).unwrap();
+    f.set_len(65 * 1024 * 1024).unwrap();
+    f.set_times(FileTimes::new().set_modified(SystemTime::now() - Duration::from_secs(120)))
+        .unwrap();
+    let p = e.prepare_cleanup(profile(id)).unwrap();
+    assert!(
+        !p.rows
+            .iter()
+            .find(|r| r.source == "aaa large.txt")
+            .unwrap()
+            .selected
+    );
+    e.save_cleanup_profile(p.token).unwrap();
+    e.cancel_cleanup(p.token);
+    let result = e.maintain_cleanup_profile(|| true).unwrap().unwrap();
+    assert_eq!(result.applied, 2);
+    assert!(result.error.is_none());
+    assert!(path.exists());
+}
+#[test]
+fn automatic_layout_skips_newly_changing_files() {
+    let (d, mut e, id) = setup();
+    fs::write(
+        d.path().join("aaa arriving.txt"),
+        "Synthetic pending download",
+    )
+    .unwrap();
+    let p = e.prepare_cleanup(profile(id)).unwrap();
+    assert!(
+        !p.rows
+            .iter()
+            .find(|r| r.source == "aaa arriving.txt")
+            .unwrap()
+            .selected
+    );
+    e.save_cleanup_profile(p.token).unwrap();
+    e.cancel_cleanup(p.token);
+    let result = e.maintain_cleanup_profile(|| true).unwrap().unwrap();
+    assert_eq!(result.applied, 2);
+    assert!(result.error.is_none());
+    assert!(d.path().join("aaa arriving.txt").exists());
+}
