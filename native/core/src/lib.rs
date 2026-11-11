@@ -1,6 +1,8 @@
 //! Trusted native core with no network client and no arbitrary command execution
 mod folder_transfer;
 pub use folder_transfer::FolderTransferPlan;
+mod cleanup;
+pub use cleanup::{CleanupPlan, CleanupProfile, CleanupResult, CleanupRun};
 mod workspace;
 pub use workspace::{DirectoryStats, Route, TransferPlan};
 mod summaries;
@@ -128,11 +130,16 @@ pub struct Engine {
     transfers: HashMap<u64, TransferPlan>,
     route_cursor: usize,
     folder_transfers: HashMap<u64, FolderTransferPlan>,
+    active_cleanup_run: Option<i64>,
+    cleanup_plans: HashMap<u64, CleanupPlan>,
     pdf_route_cache: HashMap<(i64, String), (Identity, u64)>,
 }
 impl Engine {
     pub fn new(db: Connection) -> Result<Self> {
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA secure_delete=ON;
+        CREATE TABLE IF NOT EXISTS cleanup_profiles(id INTEGER PRIMARY KEY CHECK(id=1),value TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS cleanup_runs(id INTEGER PRIMARY KEY,label TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS cleanup_operations(run_id INTEGER NOT NULL,operation_id INTEGER NOT NULL UNIQUE);
         CREATE TABLE IF NOT EXISTS routes(category TEXT PRIMARY KEY,target_root_id INTEGER NOT NULL,folder TEXT NOT NULL,content INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS kept(root_id INTEGER NOT NULL,source TEXT NOT NULL,identity TEXT NOT NULL,PRIMARY KEY(root_id,source));
         CREATE TABLE IF NOT EXISTS roots(id INTEGER PRIMARY KEY AUTOINCREMENT,path TEXT NOT NULL UNIQUE,bookmark TEXT NOT NULL,reviewed INTEGER NOT NULL DEFAULT 0);
@@ -193,6 +200,8 @@ impl Engine {
             route_cursor: 0,
             folder_transfers: HashMap::new(),
             pdf_route_cache: HashMap::new(),
+            cleanup_plans: HashMap::new(),
+            active_cleanup_run: None,
         })
     }
     fn parent(&self, id: i64, relative: &str) -> std::io::Result<(std::fs::File, String)> {
@@ -772,7 +781,10 @@ impl Engine {
             return Err("Renaming disabled".into());
         }
         if !approved {
-            if self.folder_is_held(root.id, &p.source) {
+            if self.folder_is_held(root.id, &p.source)
+                || self.cleanup_is_held(root.id)
+                || self.uses_cleanup_profile(root.id)
+            {
                 return Err("A folder transfer preview is holding this collection".into());
             }
             if !root.initial_reviewed || self.settings.mode == Mode::Smart {

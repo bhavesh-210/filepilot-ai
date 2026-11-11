@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Workspace, TransferSeed } from "./components/Workspace";
+import { Organize } from "./components/Organize";
 import { Setup } from "./components/Setup";
 import { Preferences } from "./components/Preferences";
 import { Collections } from "./components/Collections";
@@ -36,6 +37,7 @@ const initial: Snapshot = {
   notice: "",
 };
 type Page =
+  | "organize"
   | "workspace"
   | "overview"
   | "review"
@@ -45,6 +47,7 @@ type Page =
   | "preferences";
 const pages: { id: Page; label: string; symbol: string }[] = [
   { id: "overview", label: "Overview", symbol: "◫" },
+  { id: "organize", label: "Organize", symbol: "▦" },
   { id: "review", label: "Review inbox", symbol: "▤" },
   { id: "workspace", label: "Main locations", symbol: "◫" },
   { id: "collections", label: "Collections", symbol: "▱" },
@@ -277,7 +280,7 @@ function App() {
         >
           <span className="brand-mark">▱</span>FilePilot <em>AI</em>
         </a>
-        <div className="workspace-label">YOUR PERSONAL FILE ASSISTANT</div>
+        <div className="workspace-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
           {pages.map((item) => (
             <button
@@ -338,24 +341,24 @@ function App() {
       <main>
         <header>
           <div>
-            <div className="eyebrow">YOUR FILES YOUR MAC YOUR CONTROL</div>
+            <div className="eyebrow">FILEPILOT</div>
             <h1>
               {page === "overview"
                 ? needsSetup
                   ? "Welcome to FilePilot"
-                  : "A calmer place for your files"
+                  : "Your folders"
                 : pages.find((p) => p.id === page)?.label}
             </h1>
             <p>
               {page === "overview"
-                ? "Less sorting more space to focus"
+                ? "Folder access and recent activity"
                 : page === "review"
-                  ? "A few decisions only you can make"
+                  ? "Files waiting for a decision"
                   : page === "folders"
                     ? "The places FilePilot is allowed to look after"
                     : page === "activity"
                       ? "Every change recorded with a way back"
-                      : "Make FilePilot work your way"}
+                      : "Manage files and folder preferences"}
             </p>
           </div>
           <span className="pill">
@@ -413,8 +416,8 @@ function App() {
                     <div className="eyebrow">A LITTLE LESS TO THINK ABOUT</div>
                     <h2>
                       {state.settings.monitoring
-                        ? "Your folders have a helping hand"
-                        : "Take a breather"}
+                        ? "Background maintenance"
+                        : "Maintenance paused"}
                     </h2>
                     <p>
                       {state.settings.monitoring
@@ -437,9 +440,8 @@ function App() {
                           ? "Pause maintenance"
                           : "Resume maintenance"}
                       </button>
-                      <button onClick={() => setPage("review")}>
-                        Open review inbox
-                      </button>
+                      <button className="primary" onClick={() => setPage("organize")}>Organize files</button>
+                      <button onClick={() => setPage("review")}>Open review inbox</button>
                     </div>
                   </div>
                   <div className="hero-art" aria-hidden="true">
@@ -605,6 +607,7 @@ function App() {
                 )}
               </section>
             )}
+            {page === "organize" && <Organize state={state} busy={busy || !native} onTask={task} onChanged={refresh} onMessage={setMessage}/> }
             {page === "workspace" && (
               <Workspace
                 key={`${transferSeed?.rootId || "workspace"}:${transferSeed?.source || ""}`}

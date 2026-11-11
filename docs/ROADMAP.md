@@ -155,3 +155,15 @@ Use disposable sibling test roots for these checks
 The next milestone is whole cleanup planning rather than adding more dashboard controls
 See [product direction](PRODUCT_DIRECTION.md) for the revised workflow gaps and implementation checklist
 The local intelligence milestone follows a tested unified plan schema
+
+## Unified cleanup preset milestone
+
+- [x] Combined read only preset preview across selected locations
+- [x] File kind and year layouts with editable paths and naming previews
+- [x] Persisted approved background layout preset
+- [x] Cleanup run membership and guarded grouped Undo
+- [x] Quieter system styled desktop interface
+- [ ] General semantic structure generation and content based naming
+- [ ] OCR and audited additional document formats
+
+See CLEANUP for exact limits and validation scope

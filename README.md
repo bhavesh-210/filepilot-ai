@@ -6,6 +6,10 @@ I am building an offline macOS file organizer with a React and Tauri desktop app
 The current native build is a development alpha rather than a production release
 Use disposable test folders until the Mac acceptance and security checks pass
 
+The Organize workflow now offers one editable cleanup preview file kind and year layouts modification date naming and persistent cleanup run Undo
+The interface uses compact system styled controls and a conventional file table
+See [cleanup behavior and limits](docs/CLEANUP.md)
+
 The app now starts with a one time preference and folder access setup followed by a first cleanup preview
 The daily interface separates an overview automatic review inbox folder coverage activity and preferences
 Ordinary folders and subfolders are analysed recursively while detected coding projects stay protected

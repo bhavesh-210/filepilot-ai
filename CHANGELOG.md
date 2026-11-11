@@ -1,3 +1,14 @@
+# Unified cleanup and quieter desktop interface
+
+Added one editable cleanup preview across selected authorized locations
+Added file kind and kind then year presets with optional modification date naming
+Added explicit saved layout automation and Smart Approval gating
+Grouped durable operations into cleanup runs with guarded partial Undo
+Kept unsupported kinds out of automatic selection and preserved project boundaries
+Replaced dark promotional styling with a light system palette and conventional tables
+Added synthetic cleanup engine and browser workflow checks
+Content based entity naming OCR and natural language planning remain unimplemented
+
 # Product direction review
 
 Compared the documented Folder Organizer and Sortio workflows with the current alpha

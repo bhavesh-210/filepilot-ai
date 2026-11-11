@@ -18,7 +18,7 @@ pub struct TransferPlan {
     pub category: String,
     pub reason: String,
     pub automatic: bool,
-    snapshot: Identity,
+    pub(crate) snapshot: Identity,
     revision: u64,
     authorization_epoch: u64,
 }
@@ -340,7 +340,10 @@ impl Engine {
             if results.len() >= 24 {
                 break;
             }
-            if self.folder_is_held(p.root_id, &p.source) {
+            if self.folder_is_held(p.root_id, &p.source)
+                || self.cleanup_is_held(p.root_id)
+                || self.uses_cleanup_profile(p.root_id)
+            {
                 continue;
             }
             if p.manual_destination
@@ -464,7 +467,8 @@ impl Engine {
                     && p.source.to_lowercase().ends_with(".pdf")
                     && p.snapshot.size <= 2097152
                     && now.saturating_sub(p.snapshot.mtime) >= 10
-                    && !self.folder_is_held(p.root_id, &p.source)
+                    && !(self.folder_is_held(p.root_id, &p.source)
+                        || self.cleanup_is_held(p.root_id))
                     && self
                         .roots
                         .get(&p.root_id)
@@ -492,7 +496,7 @@ impl Engine {
         }
         if !p.source.to_lowercase().ends_with(".pdf")
             || p.manual_destination
-            || self.folder_is_held(p.root_id, &p.source)
+            || (self.folder_is_held(p.root_id, &p.source) || self.cleanup_is_held(p.root_id))
         {
             return Ok(None);
         }
@@ -584,7 +588,10 @@ impl Engine {
             }
         }
         if !approved {
-            if self.folder_is_held(p.source_root_id, &p.source) {
+            if self.folder_is_held(p.source_root_id, &p.source)
+                || self.cleanup_is_held(p.source_root_id)
+                || self.uses_cleanup_profile(p.source_root_id)
+            {
                 return Err("A folder transfer preview is holding this collection".into());
             }
             if !self.settings.monitoring || self.settings.mode == Mode::Smart || !p.automatic {
@@ -620,6 +627,14 @@ impl Engine {
         let digest = fs::digest(&from, &source, &snapshot).map_err(message)?;
         self.db.execute("INSERT INTO operations(root_id,source,destination,identity,state,digest,kind,destination_root_id) VALUES(?,?,?,?,'pending',?,'transfer',?)",params![p.source_root_id,p.source,p.destination,serde_json::to_string(&snapshot).map_err(message)?,digest,p.target_root_id]).map_err(message)?;
         let operation = self.db.last_insert_rowid();
+        if let Some(run) = self.active_cleanup_run {
+            self.db
+                .execute(
+                    "INSERT INTO cleanup_operations VALUES(?,?)",
+                    params![run, operation],
+                )
+                .map_err(message)?;
+        }
         if !current() {
             self.db
                 .execute(

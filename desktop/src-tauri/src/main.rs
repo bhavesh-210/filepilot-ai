@@ -43,6 +43,98 @@ unsafe fn native_json(pointer: *mut libc::c_char) -> Result<serde_json::Value, S
     Ok(value)
 }
 #[tauri::command]
+fn cleanup_profile(
+    state: tauri::State<Shared>,
+) -> Result<Option<filepilot_core::CleanupProfile>, String> {
+    state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .saved_cleanup_profile()
+}
+#[tauri::command]
+fn save_cleanup_profile(token: u64, state: tauri::State<Shared>) -> Result<(), String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut e = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    e.save_cleanup_profile(token)?;
+    e.permission_epoch = epoch;
+    Ok(())
+}
+#[tauri::command]
+fn clear_cleanup_profile(state: tauri::State<Shared>) -> Result<(), String> {
+    let epoch = state.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+    let mut e = state.engine.lock().map_err(|_| "Engine lock failed")?;
+    e.clear_cleanup_profile()?;
+    e.permission_epoch = epoch;
+    Ok(())
+}
+#[tauri::command]
+fn cleanup_runs(state: tauri::State<Shared>) -> Result<Vec<filepilot_core::CleanupRun>, String> {
+    state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .cleanup_runs()
+}
+#[tauri::command]
+fn cancel_cleanup(token: u64, state: tauri::State<Shared>) -> Result<(), String> {
+    state
+        .engine
+        .lock()
+        .map_err(|_| "Engine lock failed")?
+        .cancel_cleanup(token);
+    Ok(())
+}
+#[tauri::command]
+async fn prepare_cleanup(
+    profile: filepilot_core::CleanupProfile,
+    state: tauri::State<'_, Shared>,
+) -> Result<filepilot_core::CleanupPlan, String> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine
+            .lock()
+            .map_err(|_| "Engine lock failed")?
+            .prepare_cleanup(profile)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn apply_cleanup(
+    save_profile: bool,
+    token: u64,
+    choices: Vec<(usize, String)>,
+    state: tauri::State<'_, Shared>,
+) -> Result<filepilot_core::CleanupResult, String> {
+    let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut e = engine.lock().map_err(|_| "Engine lock failed")?;
+        let expected = e.permission_epoch;
+        e.apply_cleanup_with_profile(token, choices, save_profile, || {
+            epoch.load(Ordering::SeqCst) == expected
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn undo_cleanup(
+    run_id: i64,
+    state: tauri::State<'_, Shared>,
+) -> Result<filepilot_core::CleanupResult, String> {
+    let engine = state.engine.clone();
+    let epoch = state.epoch.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut e = engine.lock().map_err(|_| "Engine lock failed")?;
+        let expected = e.permission_epoch;
+        e.undo_cleanup(run_id, || epoch.load(Ordering::SeqCst) == expected)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 fn snapshot(state: tauri::State<Shared>) -> Result<serde_json::Value, String> {
     let engine = state.engine.lock().map_err(|_| "Engine lock failed")?;
     let roots=engine.saved_roots()?.iter().map(|r|serde_json::json!({"id":r.id,"path":r.path,"initial_reviewed":r.initial_reviewed,"active":engine.roots.contains_key(&r.id)})).collect::<Vec<_>>();
@@ -741,7 +833,10 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                                 if !engine.settings.monitoring {
                                     break;
                                 }
-                                if engine.folder_is_held(p.root_id, &p.source) {
+                                if (engine.folder_is_held(p.root_id, &p.source)
+                                    || engine.cleanup_is_held(p.root_id)
+                                    || engine.uses_cleanup_profile(p.root_id))
+                                {
                                     continue;
                                 }
                                 if engine.route_for_proposal(&p).ok().flatten().is_some() {
@@ -767,6 +862,28 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
                     }
                     Err(e) => {
                         *state.notice.lock().unwrap() = format!("Folder requires attention {e}");
+                    }
+                }
+            }
+            {
+                let mut engine = state.engine.lock().unwrap();
+                let expected = engine.permission_epoch;
+                match engine
+                    .maintain_cleanup_profile(|| state.epoch.load(Ordering::SeqCst) == expected)
+                {
+                    Ok(Some(result)) => {
+                        if result.applied > 0 {
+                            applied = true;
+                            applied_roots.extend(roots.iter().map(|r| r.id));
+                        }
+                        if let Some(error) = result.error {
+                            *state.notice.lock().unwrap() =
+                                format!("Layout maintenance stopped {error}");
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        *state.notice.lock().unwrap() = format!("Layout needs attention {error}");
                     }
                 }
             }
@@ -846,6 +963,14 @@ fn monitor(app: tauri::AppHandle, state: Shared) {
 fn main() {
     let application = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            cleanup_profile,
+            save_cleanup_profile,
+            clear_cleanup_profile,
+            cleanup_runs,
+            cancel_cleanup,
+            prepare_cleanup,
+            apply_cleanup,
+            undo_cleanup,
             prepare_folder_transfer,
             cancel_folder_transfer,
             apply_folder_transfer,

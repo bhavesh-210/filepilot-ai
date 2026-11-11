@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MOCK = '''
 window.testCalls=[];
 window.testSettings={mode:'full',rename:true,monitoring:true,personalization:true,trash_proposals:true,review_notifications:false,revision:0};
-window.testHistory=[];
+window.testHistory=[];window.cleanupRuns=[];window.cleanupProfile=null;
 window.testFolder={id:1,path:window.testMulti?'/synthetic/Downloads':'/synthetic/demo',active:true,initial_reviewed:!window.testSetup};
 window.baseInventory=()=>({root_id:1,files:1,folders:['College'],items:['lecture.txt'],protected:1,errors:[],proposals:window.testKept||window.testExpired||window.testHistory.some(o=>o.state==='applied')?[]:[{id:7,root_id:1,source:window.syntheticSource||'lecture.txt',destination:'College/lecture.txt',category:'Education',reason:'Reuse an existing category folder',blocked:false,rename:false,certain:true}]});
 window.testRoutes=[];
@@ -32,6 +32,14 @@ window.__TAURI_INTERNALS__={
   if(command==='apply_folder_transfer'){window.testHistory=[{id:5,root_id:window.testTransfer.source_root_id,destination_root_id:window.testTransfer.target_root_id,source:window.testTransfer.source,destination:window.testTransfer.destination,state:'applied',kind:'folder_transfer'}];return 5;}
   if(command==='prepare_transfer'){window.testTransfer={token:101,source_root_id:args.sourceRootId,target_root_id:args.targetRootId,source:args.source,destination:(args.folder?args.folder+'/':'')+args.source.split('/').pop(),category:'Education',reason:'Explicit move between approved locations',automatic:false};return window.testTransfer;}
   if(command==='apply_transfer'){window.testHistory=[{id:4,root_id:window.testTransfer.source_root_id,destination_root_id:window.testTransfer.target_root_id,source:window.testTransfer.source,destination:window.testTransfer.destination,state:'applied',kind:'transfer'}];return 4;}
+  if(command==='cleanup_runs')return window.cleanupRuns;
+  if(command==='cleanup_profile')return window.cleanupProfile;
+  if(command==='save_cleanup_profile'){window.cleanupProfile={root_ids:[1],by_year:false,date_prefix:false};return null;}
+  if(command==='clear_cleanup_profile'){window.cleanupProfile=null;return null;}
+  if(command==='cancel_cleanup')return null;
+  if(command==='prepare_cleanup')return {token:201,rows:[{root_id:1,source:'lecture.txt',destination:args.profile.by_year?'Documents/2026/lecture.txt':'Documents/lecture.txt',selected:true,reason:'Group by file kind'},{root_id:1,source:'receipt.txt',destination:'Documents/receipt.txt',selected:true,reason:'Group by file kind'}],folders:[[1,'Documents']],protected:1,unchanged:0};
+  if(command==='apply_cleanup'){if(args.saveProfile)window.cleanupProfile={root_ids:[1],by_year:false,date_prefix:false};window.cleanupRuns=[{id:1,label:'File kind',operations:args.choices.length,remaining:args.choices.length}];return {run_id:1,applied:args.choices.length,error:null};}
+  if(command==='undo_cleanup'){window.cleanupRuns[0].remaining=0;return {run_id:1,applied:window.cleanupRuns[0].operations,error:null};}
   if(command==='choose_folders')return {ids:[1],errors:[],cancelled:false};
   if(command==='prepare_setup'){window.testPrepared=true;return {token:42,inventory:window.inventory(),create_folders:[]};}
   if(command==='finish_setup'){if(args.token!==42)throw 'Wrong token';window.testFolder.initial_reviewed=true;return null;}
@@ -78,7 +86,7 @@ class DesktopBrowserTests(unittest.TestCase):
         page=context.new_page();self.errors=[]
         page.on('pageerror',lambda e:self.errors.append(str(e)))
         page.goto(f'http://127.0.0.1:{self.server.server_port}')
-        page.get_by_role('heading',name='Welcome to FilePilot' if setup or not native else 'A calmer place for your files',exact=True).wait_for()
+        page.get_by_role('heading',name='Welcome to FilePilot' if setup or not native else 'Your folders',exact=True).wait_for()
         return page
     def nav(self,page,label):page.get_by_role('navigation').get_by_role('button',name=label).click()
     def review(self,page):
@@ -102,7 +110,7 @@ class DesktopBrowserTests(unittest.TestCase):
         self.assertNotIn('apply',page.evaluate('window.testCalls'))
         self.assertNotIn('create_categories',page.evaluate('window.testCalls'))
         page.get_by_role('button',name='Start maintaining my folders').click()
-        page.get_by_role('heading',name='A calmer place for your files').wait_for()
+        page.get_by_role('heading',name='Your folders').wait_for()
         self.assertIn('finish_setup',page.evaluate('window.testCalls'))
         self.assertFalse(self.errors,self.errors)
     def test_review_inbox_does_not_need_a_manual_scan(self):
@@ -303,6 +311,44 @@ class DesktopBrowserTests(unittest.TestCase):
         page.get_by_text('Transfer recorded use Activity to undo',exact=True).wait_for()
         self.assertIn('apply_folder_transfer',page.evaluate('window.testCalls'))
         self.nav(page,'Activity');self.assertTrue(page.get_by_role('button',name='Undo',exact=True).is_enabled())
+    def test_cleanup_preview_exclusions_and_run_undo(self):
+        page=self.open();self.nav(page,'Organize')
+        page.get_by_role('button',name='Preview organization',exact=True).click()
+        page.get_by_role('heading',name='Check the proposed changes').wait_for()
+        self.assertNotIn('apply_cleanup',page.evaluate('window.testCalls'))
+        page.get_by_label('Include receipt.txt',exact=True).uncheck()
+        page.get_by_label('Destination for lecture.txt',exact=True).fill('Documents/study.txt')
+        page.get_by_role('button',name='Apply selected changes',exact=True).click()
+        page.get_by_role('button',name='Undo run',exact=True).wait_for()
+        self.assertEqual(page.evaluate('window.cleanupRuns[0].operations'),1)
+        page.get_by_role('button',name='Undo run',exact=True).click()
+        page.get_by_text('1 files restored',exact=True).wait_for()
+        self.assertEqual(page.evaluate('window.cleanupRuns[0].remaining'),0)
+    def test_cleanup_cancel_releases_preview_without_applying(self):
+        page=self.open();self.nav(page,'Organize')
+        page.get_by_role('button',name='Preview organization',exact=True).click()
+        page.get_by_role('button',name='Cancel',exact=True).click()
+        page.get_by_role('button',name='Preview organization',exact=True).wait_for()
+        self.assertIn('cancel_cleanup',page.evaluate('window.testCalls'))
+        self.assertNotIn('apply_cleanup',page.evaluate('window.testCalls'))
+    def test_cleanup_automation_is_explicit_and_can_be_disabled(self):
+        page=self.open();self.nav(page,'Organize')
+        page.get_by_role('button',name='Preview organization',exact=True).click()
+        page.get_by_label('Use this grouping and naming preset for future arrivals',exact=True).check()
+        page.get_by_role('button',name='Apply selected changes',exact=True).click()
+        page.get_by_role('button',name='Disable automatic layout',exact=True).wait_for()
+        self.assertIsNotNone(page.evaluate('window.cleanupProfile'))
+        page.get_by_role('button',name='Disable automatic layout',exact=True).click()
+        page.get_by_text('Automatic layout disabled',exact=True).wait_for()
+        self.assertIsNone(page.evaluate('window.cleanupProfile'))
+    def test_cleanup_year_preset_and_no_horizontal_page_overflow(self):
+        page=self.open();self.nav(page,'Organize')
+        page.get_by_label('Cleanup grouping',exact=True).select_option('year')
+        page.get_by_role('button',name='Preview organization',exact=True).click()
+        page.get_by_label('Destination for lecture.txt',exact=True).wait_for()
+        self.assertEqual(page.get_by_label('Destination for lecture.txt',exact=True).input_value(),'Documents/2026/lecture.txt')
+        page.set_viewport_size({'width':390,'height':844})
+        self.assertTrue(page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
     def test_visual_snapshots(self):
         directory=ROOT/'desktop/test-results';directory.mkdir(exist_ok=True)
         page=self.open();page.screenshot(path=str(directory/'overview.png'),full_page=True)
@@ -310,6 +356,7 @@ class DesktopBrowserTests(unittest.TestCase):
         page.get_by_role('button',name='Summarise',exact=True).click();page.get_by_text('The invoice payment amount is due on Friday',exact=True).wait_for();page.screenshot(path=str(directory/'summary.png'),full_page=True)
         self.nav(page,'Collections');page.screenshot(path=str(directory/'collections.png'),full_page=True)
         page=self.open(multi=True);self.nav(page,'Main locations');page.screenshot(path=str(directory/'workspace.png'),full_page=True)
+        page=self.open();self.nav(page,'Organize');page.get_by_role('button',name='Preview organization',exact=True).click();page.get_by_role('heading',name='Check the proposed changes').wait_for();page.screenshot(path=str(directory/'organize.png'),full_page=True)
         page=self.open(setup=True);page.screenshot(path=str(directory/'setup.png'),full_page=True)
         self.assertFalse(self.errors,self.errors)
 if __name__=='__main__':unittest.main(verbosity=2)
