@@ -149,3 +149,9 @@ The core suite has 115 passing synthetic tests on Linux and macOS
 All 31 React browser workflows pass against the production frontend and synthetic native bridge
 Real Mac acceptance must check both grants folder picker renewals route previews per location counts file and folder transfer Undo and sleep wake reconciliation
 Use disposable sibling test roots for these checks
+
+## Current priority after reference review
+
+The next milestone is whole cleanup planning rather than adding more dashboard controls
+See [product direction](PRODUCT_DIRECTION.md) for the revised workflow gaps and implementation checklist
+The local intelligence milestone follows a tested unified plan schema

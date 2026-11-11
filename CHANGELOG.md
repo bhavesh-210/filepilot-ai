@@ -1,3 +1,11 @@
+# Product direction review
+
+Compared the documented Folder Organizer and Sortio workflows with the current alpha
+Recorded the gap between category routing and whole workspace planning
+Prioritized one editable cleanup plan reusable profiles richer local analysis and grouped Undo
+Kept offline processing and existing filesystem protections as requirements
+No additional intelligence features are claimed as implemented
+
 # Main locations and approved routing
 
 Added per directory workspace cards and an all locations review inbox
